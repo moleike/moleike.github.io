@@ -1,0 +1,67 @@
+baseURL = 'http://localhost:1313/'
+themesDir = "themes"
+theme = "hugo-bearblog"
+
+# Basic metadata configuration for your blog.
+title = "Alex Moreno"
+author = "Alex Moreno"
+copyright = "Copyright © 2024, Alex Moreno."
+languageCode = "en-US"
+
+# Generate a nice robots.txt for SEO
+enableRobotsTXT = true
+
+disableKinds = ["home"]
+ignoreErrors = ["error-disable-taxonomy"]
+
+[params]
+  description = "moleike's blog"
+  favicon = "images/favicon.png"
+  images = ["images/share.png"]
+  title = "moleike's blog"
+  # This theme will, by default, inject a made-with-line at the bottom of the page.
+  # You can turn it off, but we would really appreciate if you don’t :-).
+  hideMadeWithLine = true
+
+  # By default, this theme displays dates with a format like "02 Jan, 2006", but
+  # you can customize it by setting the `dateFormat` param in your site's config
+  # file. See [Hugo's Format function docs](https://gohugo.io/functions/format/)
+  # for details. An example TOML config that uses [ISO
+  # 8601](https://en.wikipedia.org/wiki/ISO_8601) format:
+  dateFormat = "2006-01-02"
+
+[module]
+  [module.hugoVersion]
+    extended = true
+    min = "0.55.0"
+
+
+# markdown config settings https://gohugo.io/getting-started/configuration-markup/#goldmark
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      hardWraps = false
+      unsafe = true
+      xhtml = false
+  [markup.highlight]
+    codeFences = true
+    noClasses = true
+    style = 'monokai'
+    tabWidth = 4
+
+[menu]
+  [[menu.main]]
+    name = "Blog"
+    identifier = "blog"
+    weight = 1
+    url = "/blog/"
+  [[menu.main]]
+    name = "About"
+    identifier = "about"
+    weight = 2
+    url = "/about/"
+  [[menu.main]]
+    name = "Tags"
+    identifier = "tags"
+    weight = 3
+    url = "/tags/"
