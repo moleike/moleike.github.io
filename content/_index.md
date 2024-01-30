@@ -1,8 +1,9 @@
 +++
 title = "Blog"
-url = "/"
+path = "/"
 [menu]
   [menu.main]
     identifier = "blog"
     weight = 1
 +++
+
