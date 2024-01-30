@@ -24,7 +24,7 @@
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
         blog = pkgs.stdenv.mkDerivation {
-          name = "pages";
+          name = "blog";
           # Exclude themes and public folder from build sources
           src =
             builtins.filterSource
@@ -56,7 +56,7 @@
         };
 
         apps.default = flake-utils.lib.mkApp {
-          drv = pkgs.writeShellScriptBin "pages" ''
+          drv = pkgs.writeShellScriptBin "hugo" ''
             mkdir -p themes
             ln -sf ${bearblog} themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo server --config ./hugo.toml --watch;

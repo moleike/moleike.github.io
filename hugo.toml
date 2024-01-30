@@ -1,4 +1,4 @@
-baseURL = 'http://localhost:1313/'
+baseURL = 'https://moleike.github.io/'
 themesDir = "themes"
 theme = "hugo-bearblog"
 
@@ -11,7 +11,7 @@ languageCode = "en-US"
 # Generate a nice robots.txt for SEO
 enableRobotsTXT = true
 
-disableKinds = ["home"]
+disableKinds = ["taxonomy", "home"]
 ignoreErrors = ["error-disable-taxonomy"]
 
 [params]
@@ -50,11 +50,6 @@ ignoreErrors = ["error-disable-taxonomy"]
     tabWidth = 4
 
 [menu]
-  [[menu.main]]
-    name = "Blog"
-    identifier = "blog"
-    weight = 1
-    url = "/blog/"
   [[menu.main]]
     name = "About"
     identifier = "about"
