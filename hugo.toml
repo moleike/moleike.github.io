@@ -48,6 +48,11 @@ enableRobotsTXT = true
 
 [menu]
   [[menu.main]]
+    name = "Blog"
+    identifier = "blog"
+    weight = 1
+    url = "/"
+  [[menu.main]]
     name = "About"
     identifier = "about"
     weight = 2
