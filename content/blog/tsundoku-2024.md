@@ -1,6 +1,7 @@
 ---
 title: "Curbing my Tsundoku"
 date: 2024-01-26
+draft: true
 tags:
   - reading
   - goodreads
