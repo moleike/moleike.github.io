@@ -3,7 +3,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 1 * *'
-
+permissions:
+  pull-requests: write
+  contents: write
 jobs:
   lockfile:
     runs-on: ubuntu-latest
