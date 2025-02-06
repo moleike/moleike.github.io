@@ -21,9 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - run: nix build .#blog --print-build-logs
+      - name: Build
+        run: nix build .#blog --print-build-logs
       - name: Adjust permissions
         run: |
           chown -R `id -u`:`id -g` ./result
