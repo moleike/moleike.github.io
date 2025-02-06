@@ -25,10 +25,6 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - name: Build
         run: nix build .#blog --print-build-logs
-      - name: Adjust permissions
-        run: |
-          chown -R `id -u`:`id -g` ./result
-          chmod -R a+rwx ./result
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
