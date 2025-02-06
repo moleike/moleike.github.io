@@ -3,7 +3,7 @@ themesDir = "themes"
 theme = "hugo-bearblog"
 
 # Basic metadata configuration for your blog.
-title = "Alex Moreno"
+title = "The Monadic Morass"
 author = "Alex Moreno"
 copyright = "Copyright © 2024, Alex Moreno."
 languageCode = "en-US"
