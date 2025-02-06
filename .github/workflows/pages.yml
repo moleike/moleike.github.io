@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-        run: nix build .#blog --print-build-logs
+      - run: nix build .#blog --print-build-logs
       - name: Adjust permissions
         run: |
           chown -R `id -u`:`id -g` ./result
