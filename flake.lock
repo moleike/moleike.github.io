@@ -3,11 +3,11 @@
     "bearblog": {
       "flake": false,
       "locked": {
-        "lastModified": 1712643678,
-        "narHash": "sha256-9Wk0VAGh7mIE8hyLBWWpNtmm2gDb/LfsnQT0tCnlK1I=",
+        "lastModified": 1740763337,
+        "narHash": "sha256-rszhIZLCnBImbt6FjUQUZf61oMDYh8z8hv8KKKAAy6Y=",
         "owner": "janraasch",
         "repo": "hugo-bearblog",
-        "rev": "efc24bc5e95f0ccb88051e1a7d95e8a1404e953e",
+        "rev": "550b6a2e47fe95a43b388a4fda94ec82b25c7500",
         "type": "github"
       },
       "original": {
@@ -51,11 +51,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1733097829,
-        "narHash": "sha256-9hbb1rqGelllb4kVUCZ307G2k3/UhmA8PPGBoyuWaSw=",
+        "lastModified": 1735554305,
+        "narHash": "sha256-zExSA1i/b+1NMRhGGLtNfFGXgLtgo+dcuzHzaWA6w3Q=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "2c15aa59df0017ca140d9ba302412298ab4bf22a",
+        "rev": "0e82ab234249d8eee3e8c91437802b32c74bb3fd",
         "type": "github"
       },
       "original": {
@@ -93,11 +93,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1735653038,
-        "narHash": "sha256-Q6xAmciTXDtZfUxf6c15QqtRR8BvX4edYPstF/uoqMk=",
+        "lastModified": 1739829690,
+        "narHash": "sha256-mL1szCeIsjh6Khn3nH2cYtwO5YXG6gBiTw1A30iGeDU=",
         "owner": "numtide",
         "repo": "treefmt-nix",
-        "rev": "56c0ecd79f7ba01a0ec027da015df751d6ca3ae7",
+        "rev": "3d0579f5cc93436052d94b73925b48973a104204",
         "type": "github"
       },
       "original": {
