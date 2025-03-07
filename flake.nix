@@ -1,12 +1,12 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-24.11";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     bearblog = {
-      url = github:janraasch/hugo-bearblog;
+      url = github:janraasch/hugo-bearblog/939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba;
       flake = false;
     };
   };
@@ -39,7 +39,7 @@
           # Link theme to themes folder and build
           buildPhase = ''
             mkdir -p themes
-            ln -s ${bearblog} themes/hugo-bearblog
+            ln -s ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo --config ./hugo.toml --minify
           '';
           installPhase = ''
@@ -59,7 +59,7 @@
         apps.default = flake-utils.lib.mkApp {
           drv = pkgs.writeShellScriptBin "hugo" ''
             mkdir -p themes
-            ln -sf ${bearblog} themes/hugo-bearblog
+            ln -sf ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo server --config ./hugo.toml --watch;
           '';
         };

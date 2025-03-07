@@ -3,16 +3,17 @@
     "bearblog": {
       "flake": false,
       "locked": {
-        "lastModified": 1740763337,
-        "narHash": "sha256-rszhIZLCnBImbt6FjUQUZf61oMDYh8z8hv8KKKAAy6Y=",
+        "lastModified": 1706000723,
+        "narHash": "sha256-VyWYk06HVJ7E6Io+80mO6qK9U0gRdwUQ8btZ6hBT/Wg=",
         "owner": "janraasch",
         "repo": "hugo-bearblog",
-        "rev": "550b6a2e47fe95a43b388a4fda94ec82b25c7500",
+        "rev": "939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba",
         "type": "github"
       },
       "original": {
         "owner": "janraasch",
         "repo": "hugo-bearblog",
+        "rev": "939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba",
         "type": "github"
       }
     },
@@ -36,16 +37,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1741196730,
-        "narHash": "sha256-0Sj6ZKjCpQMfWnN0NURqRCQn2ob7YtXTAOTwCuz7fkA=",
+        "lastModified": 1741246872,
+        "narHash": "sha256-Q6pMP4a9ed636qilcYX8XUguvKl/0/LGXhHcRI91p0U=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "48913d8f9127ea6530a2a2f1bd4daa1b8685d8a3",
+        "rev": "10069ef4cf863633f57238f179a0297de84bd8d3",
         "type": "github"
       },
       "original": {
         "id": "nixpkgs",
-        "ref": "nixos-24.11",
+        "ref": "nixos-unstable",
         "type": "indirect"
       }
     },
