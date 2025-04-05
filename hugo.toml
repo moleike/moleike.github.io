@@ -3,9 +3,9 @@ themesDir = "themes"
 theme = "hugo-bearblog"
 
 # Basic metadata configuration for your blog.
-title = "Out of the Morass"
+title = "Scattered Space"
 author = "Alex Moreno"
-copyright = "Copyright © 2024, Alex Moreno."
+copyright = "Copyright © 2025, Alex Moreno."
 languageCode = "en-US"
 
 # Generate a nice robots.txt for SEO
