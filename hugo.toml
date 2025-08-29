@@ -53,12 +53,17 @@ enableRobotsTXT = true
     weight = 1
     url = "/"
   [[menu.main]]
+    name = "Now"
+    identifier = "now"
+    weight = 2
+    url = "/now/"
+  [[menu.main]]
     name = "About"
     identifier = "about"
-    weight = 2
+    weight = 3
     url = "/about/"
   [[menu.main]]
     name = "Categories"
     identifier = "categories"
-    weight = 3
+    weight = 4
     url = "/tags/"
