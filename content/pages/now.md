@@ -8,7 +8,7 @@ date: 2025-08-29
 
 _This page was last updated on {{< current_date >}} and inspired by [Derek Sivers][nownownow]_
 
-Spend the summer in Taiwan. 
+Spent the summer in Taiwan. 
 
 We had a very enjoyable time, reconnect with family
 and old friends, and visit our favorite restaurants, cafes, sport centers and
