@@ -19,8 +19,8 @@ I enjoy telling stories, going down rabbit holes, and have a long-standing
 interest in mathematical logic and computer science. I have always been
 fascinated by the interplay between theory and practice in programming, and
 enjoy exploring that through various lenses, in particular reasoning about
-programs with mathematically rigorous techniques---the discipline known as
-formal methods.
+programs with types and other mathematically rigorous techniques---the
+discipline known as formal methods.
 
 If you want to reach out to me with ideas, projects, or just want to
 say hi, I go by the moniker _moleike_ on social media and online communities.
