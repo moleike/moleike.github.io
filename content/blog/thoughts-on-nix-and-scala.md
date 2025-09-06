@@ -44,83 +44,153 @@ with its direct and transitive dependencies, forming a self-contained set of
 files in the Nix store.
 
 The built-in way to define a derivation in nix is with `stdenv.mkDerivation`.
-However, this assumes an Autotools-based build of your application, and so
-commonly there are specialized functions in Nixpkgs for many languages and build
-systems, documented
-[here](https://nixos.org/manual/nixpkgs/stable/#chap-language-support).
+
+A Nix derivation is executed in a sequence of phases, a little bit like
+Autotools employs a three-stage process to build software: configure, make, and
+make install. The phases are documented in the manual
+[here](https://nixos.org/manual/nixpkgs/stable/#sec-stdenv-phases) and can be
+overridden since the default assumes an Autotools-based build, and indeed
+Nixpkgs provides specialized derivation functions for several [languages and
+build systems]. Two of these are the `buildPhase` and `installPhase`. We'll meet
+them later.
+
+### Fixed-output derivations
 
 Note that builds in Nix are sandboxed, and for good reasons: we want to ensure
 hermeticity and reproducibility---that's why derivations are pure and among
 other things can't access the network. But then, how do we fetch data not
 available in the inputs e.g. download packages from a Maven repository while
-resolving dependencies? There are different approaches to get round this, but
-Nix provides _fixed-output_ derivation for this purpose.
-
-### Fixed-output derivations
+resolving dependencies? There are different approaches to get round this, a
+common solution is using a _fixed-output_ derivation.
 
 These are derivations where the outputs are independent of its inputs and the
-content hash of the output is known and provided in advance. These derivations
-can then access the network, download the required external dependencies and
-since a cryptographic hash was provided in advance, Nix then computes a hash
-from the generated output and checks for integrity, maintaining reproducibility
-of the downloaded dependencies and build.
+content hash of the output is known and provided in advance---below we show how
+to bootstrap this process, by letting the build fail. These derivations can then
+access the network, download the required external dependencies and since a
+cryptographic hash was provided in advance, Nix then computes a hash from the
+generated output and checks for integrity, maintaining reproducibility of the
+downloaded dependencies and build.
 
-When building for the first time you just let the build fail: Nix prints out the
-hash that was expected, which then you can add to the derivation ---a strategy
-known as _trust on first use_ (TOFU).
+## A Nix derivation for Scala projects
 
-### sbt-derivation
-
-Fortunately there is a derivation for building Scala projects, so we do not need
-to create one ourselves. The way this works is by creating two separate Nix derivations: 
+In order for Nix to build and package an Scala project's dependencies
+reproducibly, we need a fixed-output derivation. Fortunately we do not need to
+do that ourselves, since there is a project doing just that: [sbt-derivation].
+Sbt-derivation internally creates two separate Nix derivations:
 - one for project dependencies---with a fixed output hash, as we mentioned
   earlier, to guarantee reproducibility
 - another one for the actual build process, with the project dependencies
   available in the workspace
   
-Note that [sbt-derivation] is not upstreamed to nixpkgs, so we need an overlay to
-add it to the set of packages.
-
-## An example with Nix flakes
-
-Now it's time to show some code. I put up an example sbt project with Nix flakes
-on this [repo](https://github.com/moleike/hello-nix-scala). Much of the code is borrowed
-from Zero to Nix [here](https://zero-to-nix.com/start/nix-build/)---which by the
-way is what got me started with this.
+Here's an example:
 
 ```nix
-sbt.mkSbtDerivation {
-  pname = name;
-  version = version;
-  depsSha256 = "";
-  src = ./.;
-  depsWarmupCommand = ''
-    sbt 'managedClasspath; compilers'
-  '';
-  startScript = ''
-    #!${pkgs.runtimeShell}
-
-    exec ${jre}/bin/java \
-      ''${JAVA_OPTS:-} \
-      -cp \
-      "${placeholder "out"}/share/${name}/lib/*" \
-      ${nixpkgs.lib.escapeShellArg mainClass} \
-      "$@"
-  '';
-  buildPhase = ''
-    sbt stage
-  '';
-  installPhase = ''
-    mkdir -p $out/share/${name}/lib
-    cp target/universal/stage/lib/*.jar $_
-    install -T -D -m755 $startScriptPath $out/bin/${name}
-  '';
-  passAsFile = [ "startScript" ];
-};
+let
+  repository = fetchTarball "https://github.com/zaninime/sbt-derivation/archive/master.tar.gz";
+  overlay = import "${repository}/overlay.nix";
+  pkgs = import <nixpkgs> { overlays = [overlay]; };
+in
+  pkgs.mkSbtDerivation {
+    pname = "my-package";
+    version = "1.0";
+    src = ./.;
+    depsSha256 = "";
+    # ...
+  }
 ```
-  
-  
 
+Note that [sbt-derivation] is not upstreamed to nixpkgs, so we need an overlay
+to add it to the set of packages. Copy the code above into a file, e.g.
+`example.nix` and add it to the root of an sbt project.
+
+First notice that we pass an empty `depsSha256`. When building for the first
+time you just let the build fail: Nix prints out the hash that was expected,
+which then you can add to the derivation ---a strategy known as _trust on first
+use_ (TOFU):
+
+```zsh
+$ nix build -f example.nix
+error: hash mismatch in fixed-output derivation '...dependencies.tar.zst.drv':
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-KZN2wBopyxkW4bWvL88zK5s5TSOD5AKRdBVfD/wIyNs=
+```
+
+### What about lockfiles?
+
+Using a hash is a small nuisance since you need to remember to update the
+attribute `depsSha256` every time you upgrade dependencies. Some packages, e.g.
+`gradle2nix.buildGradlePackage`, `buildRustPackage` or `mkYarnPackage` support
+vendoring dependencies directly from a lockfile, but `sbt` does not provide a
+built-in lockfile feature.
+
+## Walking through an example
+
+Now it's time to show some code. I put up an example sbt project---based on the
+template at [http4s-io.g8]---with Nix flakes in
+[moleike/hello-nix-scala](https://github.com/moleike/hello-nix-scala). Much of
+the code is borrowed from the examples at [sbt-derivation].
+
+In the project we are using sbt-assembly to generate a fat JAR, but note that
+with a few minor changes we can use sbt-native-packager, for example.
+
+The flake we will start with is the following:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-unstable";
+    flake-utils.url = github:numtide/flake-utils;
+    sbt.url = "github:zaninime/sbt-derivation";
+    sbt.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, sbt, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        name = "hello-nix-scala";
+        version = "0.1.0";
+        pkgs = import nixpkgs { inherit system; };
+      in
+      {
+        packages.default = sbt.mkSbtDerivation.${system} {
+          pname = name;
+          inherit version;
+          depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
+          src = ./.;
+          buildPhase = ''
+            sbt assembly
+          '';
+          installPhase = ''
+            install -T -D -m755 target/scala-3.3.3/${name}.jar $out/bin/${name}
+          '';
+        };
+      }
+    );
+}
+```
+
+As mentioned earlier, the sha256 needs to be updated on a first build, and we
+override the derivation build and install phases. To run our HTTP service:
+
+```zsh
+λ nix run .
+warning: Git tree '/Users/amoreno/Playground/hello-nix-scala' is dirty
+[io-compute-2] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080
+```
+
+This relies on having hardcoded the JAR file name:
+
+```scala
+  assembly / assemblyJarName := "hello-nix-scala.jar",
+
+```
+
+And also to prepend a launch script to the fat JAR:
+
+```scala
+import sbtassembly.AssemblyPlugin.defaultShellScript
+ThisBuild / assemblyPrependShellScript := Some(defaultShellScript)
+```
 
 [Nix]: https://nixos.org/
 [flakes]: https://zero-to-nix.com/concepts/flakes/
@@ -128,5 +198,8 @@ sbt.mkSbtDerivation {
 [home-manager]: https://github.com/nix-community/home-manager
 [nix-darwin]: https://github.com/nix-darwin/nix-darwin
 [sbt-derivation]: https://github.com/zaninime/sbt-derivation
+[chap-language-support]: https://nixos.org/manual/nixpkgs/stable/#chap-language-support
+[http4s-io.g8]: https://github.com/http4s/http4s-io.g8
+
 
 [^1]: Binary caches are heavily used to speed up build times
