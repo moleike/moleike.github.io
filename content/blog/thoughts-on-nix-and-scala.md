@@ -24,11 +24,8 @@ will briefly explore building a fully-reproducible Scala app with Nix, and how
 to deal with dependencies that are not managed by Nix. Finally we'll see how
 easy is to containerize our app with a very minimal Dockerfile.
 
-> Note that there are several blog posts talking about Nix with Docker, see for
-> example [here](https://numtide.com/blog/nix-docker-or-both/) or
-> [here](https://mitchellh.com/writing/nix-with-dockerfiles). What I am about to
-> share is my perspective on Scala, but still, most of what I'll say is language
-> agonstic.
+> I am assuming you the reader are a Scala developer with some basic familiarity
+> with Nix, otherwise you'll find this very uneven and patchy.
 
 Before jumping on building with Nix, let me first briefly brush up on some
 concepts.
@@ -272,10 +269,68 @@ Much of the code that follows is borrowed from the examples at [sbt-derivation].
 ```
 
 In this case, we provide with an explicit launch script. The install phase
-copies all the dependencies JARs into `./result/share/hello-nix-scala/lib` and
-the launch script is installed in `./result/bin/hello-nix-scala`.
+copies all the dependencies JARs into _./result/share/hello-nix-scala/lib_ and
+the launch script is installed in _./result/bin/hello-nix-scala_.
 
 ### Caveats
+
+With defaults, you are building your project twice or even thrice: once for the
+dependencies derivation to fetch dependencies and another time for the actual
+build of your project, including a possible third time if the deps hash needs
+updating. This is because the only direct way to fetch dependencies is by
+compiling your project. The attribute `depsWarmupCommand` can be overridden and
+there are few workarounds explained in [sbt-derivation] README.
+
+## Docker images with Nix
+
+Nix has support for building Docker images with `pkgs.dockerTools`, with no use
+of Docker at all, and while going this route you benefit from Nix
+reproducibility, I have found a simple Dockerfile my preferred option,
+particularly because of how a Dockerfile allows other team members not familiar
+with Nix or your codebase to create, manage, and deploy containers of your
+applications.
+
+There is an interesting discussion comparing both approaches on
+this NixOS Discourse [topic][dockertools-discussion]. More generally, this
+[post](https://numtide.com/blog/nix-docker-or-both/) is a particularly clear
+explanation of why would you want to use Nix together with Docker. But really,
+what I will discuss here is entirely based on this post from Mitchell Hashimoto
+[here](https://mitchellh.com/writing/nix-with-dockerfiles).
+
+So the idea behind this approach is to use a multistage build, which emobodies
+the idea of the builder pattern.
+
+To be continued...
+
+```docker
+# syntax = docker/dockerfile:1.4
+FROM nixos/nix:latest AS builder
+
+WORKDIR /tmp/build
+COPY . /tmp/build
+
+RUN mkdir /tmp/nix-store-closure
+
+RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
+    --mount=type=cache,target=/root/.cache <<EOF
+  nix \
+    --extra-experimental-features "nix-command flakes" \
+    --option filter-syscalls false \
+    --show-trace \
+    --log-format raw \
+    build .
+  cp -R $(nix-store -qR result/) /tmp/nix-store-closure
+  cp -R $(readlink /tmp/build/result) /tmp/result
+EOF
+
+FROM scratch
+
+WORKDIR /app
+
+COPY --from=builder /tmp/nix-store-closure /nix/store
+COPY --from=builder /tmp/result/ /app/
+CMD ["/app/bin/hello-nix-scala"]
+```
 
 [Nix]: https://nixos.org/
 [flakes]: https://zero-to-nix.com/concepts/flakes/
@@ -285,6 +340,7 @@ the launch script is installed in `./result/bin/hello-nix-scala`.
 [sbt-derivation]: https://github.com/zaninime/sbt-derivation
 [chap-language-support]: https://nixos.org/manual/nixpkgs/stable/#chap-language-support
 [http4s-io.g8]: https://github.com/http4s/http4s-io.g8
+[dockertools-discussion]: (https://discourse.nixos.org/t/why-would-someone-use-dockertools-buildimage-over-using-a-dockerfile/23025)
 
 
 [^1]: Binary caches are heavily used to speed up build times
