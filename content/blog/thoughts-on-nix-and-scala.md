@@ -36,7 +36,7 @@ concepts.
 ## Derivations
 
 To build packages with Nix you define a _derivation_. They are _pure_ functions,
-so the same input generate the same output: a unique path within the Nix
+so the same inputs always generate the same output: a unique path within the Nix
 store---which acts as the ground truth for all packages.
 
 From these derivations we piece together _build closures_: derivations together
@@ -51,8 +51,8 @@ make install. The phases are documented in the manual
 [here](https://nixos.org/manual/nixpkgs/stable/#sec-stdenv-phases) and can be
 overridden since the default assumes an Autotools-based build, and indeed
 Nixpkgs provides specialized derivation functions for several [languages and
-build systems]. Two of these are the `buildPhase` and `installPhase`. We'll meet
-them later.
+build systems][chap-language-support]. Two of these are the `buildPhase` and
+`installPhase`. We'll meet them later.
 
 ### Fixed-output derivations
 
@@ -82,7 +82,8 @@ Sbt-derivation internally creates two separate Nix derivations:
 - another one for the actual build process, with the project dependencies
   available in the workspace
   
-Here's an example:
+Let's see a Nix expression where we call the derivation:
+
 
 ```nix
 let
@@ -100,10 +101,12 @@ in
 ```
 
 Note that [sbt-derivation] is not upstreamed to nixpkgs, so we need an overlay
-to add it to the set of packages. Copy the code above into a file, e.g.
-`example.nix` and add it to the root of an sbt project.
+to add it to the set of packages.
 
-First notice that we pass an empty `depsSha256`. When building for the first
+Copy the nix expression above into a file, e.g. `example.nix` and add it to the
+root of an sbt project.
+
+Also notice that we pass an empty `depsSha256`. When building for the first
 time you just let the build fail: Nix prints out the hash that was expected,
 which then you can add to the derivation ---a strategy known as _trust on first
 use_ (TOFU):
@@ -125,15 +128,17 @@ built-in lockfile feature.
 
 ## Walking through an example
 
-Now it's time to show some code. I put up an example sbt project---based on the
-template at [http4s-io.g8]---with Nix flakes in
-[moleike/hello-nix-scala](https://github.com/moleike/hello-nix-scala). Much of
-the code is borrowed from the examples at [sbt-derivation].
+I put up an example sbt project---based on the template at [http4s-io.g8]---with
+Nix flakes. The code is on the following repo:
+[moleike/hello-nix-scala](https://github.com/moleike/hello-nix-scala).
 
-In the project we are using sbt-assembly to generate a fat JAR, but note that
-with a few minor changes we can use sbt-native-packager, for example.
+Sbt has several plugins for creating JARs and executables, below I show two of
+the most commons packaging plugins: stb-assembly and sbt-native-packager.
 
-The flake we will start with is the following:
+### sbt-assembly
+
+With sbt-assembly we build a fat JAR with app and dependencies together.
+The contents of the `flake.nix` are:
 
 ```nix
 {
@@ -155,8 +160,8 @@ The flake we will start with is the following:
         packages.default = sbt.mkSbtDerivation.${system} {
           pname = name;
           inherit version;
-          depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
           src = ./.;
+          depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
           buildPhase = ''
             sbt assembly
           '';
@@ -170,15 +175,8 @@ The flake we will start with is the following:
 ```
 
 As mentioned earlier, the sha256 needs to be updated on a first build, and we
-override the derivation build and install phases. To run our HTTP service:
-
-```zsh
-λ nix run .
-warning: Git tree '/Users/amoreno/Playground/hello-nix-scala' is dirty
-[io-compute-2] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080
-```
-
-This relies on having hardcoded the JAR file name:
+override the derivation build and install phases. The code above relies on
+having hardcoded the JAR file name:
 
 ```scala
   assembly / assemblyJarName := "hello-nix-scala.jar",
@@ -191,6 +189,93 @@ And also to prepend a launch script to the fat JAR:
 import sbtassembly.AssemblyPlugin.defaultShellScript
 ThisBuild / assemblyPrependShellScript := Some(defaultShellScript)
 ```
+
+Build the package with `nix build .`.
+
+After the build, the project's root directory contains a `result` directory,
+which is a symbolic link to our new package in the Nix store path:
+
+```sh
+$ readlink result
+/nix/store/bz975bm40cl865ar8pnbs060slfvcqlr-hello-nix-scala-0.1.0
+```
+
+> The result symlink acts as a root for the Nix garbage collector; deleting it
+> will make the corresponding store path eligible for garbage collection
+
+Running `nix derivation show` prints the results in the Nix store from
+evaluating this package.
+
+To run our HTTP service:
+
+```zsh
+$ nix run .
+warning: Git tree '/Users/amoreno/Playground/hello-nix-scala' is dirty
+[io-compute-2] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080
+```
+
+### sbt-native-packager
+
+In a very similar fashion, we can build our project with sbt-native-packager.
+Much of the code that follows is borrowed from the examples at [sbt-derivation].
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-unstable";
+    flake-utils.url = github:numtide/flake-utils;
+    sbt.url = "github:zaninime/sbt-derivation";
+    sbt.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, sbt, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        name = "hello-nix-scala";
+        version = "0.1.0";
+        mainClass = "io.moleike.hellonixscala.Main";
+        pkgs = import nixpkgs {
+          inherit system;
+        };
+      in
+      {
+        packages.default = sbt.mkSbtDerivation.${system} {
+          pname = name;
+          inherit version;
+          depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
+          src = ./.;
+          startScript = ''
+            #!${pkgs.runtimeShell}
+
+            exec ${pkgs.jdk_headless}/bin/java \
+              ''${JAVA_OPTS:-} \
+              -cp \
+              "${placeholder "out"}/share/${name}/lib/*" \
+              ${nixpkgs.lib.escapeShellArg mainClass} \
+              "$@"
+          '';
+          buildPhase = ''
+            sbt stage
+          '';
+          installPhase = ''
+            libs_dir="$out/share/${name}/lib"
+            mkdir -p "$libs_dir"
+            cp -ar target/universal/stage/lib/. "$libs_dir"
+
+            install -T -D -m755 $startScriptPath $out/bin/${name}
+          '';
+          passAsFile = [ "startScript" ];
+        };
+      }
+    );
+}
+```
+
+In this case, we provide with an explicit launch script. The install phase
+copies all the dependencies JARs into `./result/share/hello-nix-scala/lib` and
+the launch script is installed in `./result/bin/hello-nix-scala`.
+
+### Caveats
 
 [Nix]: https://nixos.org/
 [flakes]: https://zero-to-nix.com/concepts/flakes/
