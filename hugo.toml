@@ -18,7 +18,12 @@ enableRobotsTXT = true
   title = "moleike's blog"
   # This theme will, by default, inject a made-with-line at the bottom of the page.
   # You can turn it off, but we would really appreciate if you don’t :-).
-  hideMadeWithLine = false
+  hideMadeWithLine = true
+
+  # By default, if you want to read more than one blog post you have to always go
+  # back to the /blog page.
+  # By enabling this feature each blog post will have at the end a navigator
+  enablePostNavigator = false
 
   # By default, this theme displays dates with a format like "02 Jan, 2006", but
   # you can customize it by setting the `dateFormat` param in your site's config
@@ -43,8 +48,9 @@ enableRobotsTXT = true
   [markup.highlight]
     codeFences = true
     noClasses = true
+    lineNos = false
     style = 'monokai'
-    tabWidth = 4
+    tabWidth = 2
 
 [menu]
   [[menu.main]]
@@ -63,7 +69,7 @@ enableRobotsTXT = true
     weight = 3
     url = "/about/"
   [[menu.main]]
-    name = "Categories"
-    identifier = "categories"
+    name = "Tags"
+    identifier = "tags"
     weight = 4
     url = "/tags/"

@@ -38,6 +38,7 @@
             ./.;
           # Link theme to themes folder and build
           buildPhase = ''
+            rm -rf themes
             mkdir -p themes
             ln -s ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo --config ./hugo.toml --minify
@@ -58,6 +59,7 @@
 
         apps.default = flake-utils.lib.mkApp {
           drv = pkgs.writeShellScriptBin "hugo" ''
+            rm -rf themes
             mkdir -p themes
             ln -sf ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo server --config ./hugo.toml --watch;
