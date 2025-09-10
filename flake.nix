@@ -22,10 +22,24 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
 
+        yarnOfflineCache = pkgs.fetchYarnDeps {
+          yarnLock = ./yarn.lock;
+          hash = "sha256-q33qdTf3G62TF1KyBkLAU6hG9Ga6/xbefZ2eLkjl3Zw=";
+        };
+
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
         blog = pkgs.stdenv.mkDerivation {
           name = "blog";
+
+          nativeBuildInputs = with pkgs; [
+            nodejs_22
+            yarn
+            fixup-yarn-lock
+            cacert
+            hugo
+          ];
+
           # Exclude themes and public folder from build sources
           src =
             builtins.filterSource
@@ -36,13 +50,21 @@
                   == "themes"
                   || baseNameOf path == "public")))
             ./.;
-          # Link theme to themes folder and build
+
           buildPhase = ''
-            rm -rf themes
+            cat << EOF >> .yarnrc
+                yarn-offline-mirror "${yarnOfflineCache}"
+            EOF
+            fixup-yarn-lock yarn.lock
+            yarn install --offline \
+              --frozen-lockfile \
+              --ignore-platform \
+              --ignore-scripts \
+              --no-progress \
+              --non-interactive
             mkdir -p themes
-            ${pkgs.nodePackages.npm}/bin/npm ci
             ln -s ${bearblog} ./themes/hugo-bearblog
-            ${pkgs.hugo}/bin/hugo --config ./hugo.toml --minify
+            hugo --config ./hugo.toml --minify
           '';
           installPhase = ''
             cp -r public $out
@@ -60,6 +82,15 @@
 
         apps.default = flake-utils.lib.mkApp {
           drv = pkgs.writeShellScriptBin "hugo" ''
+            cat << EOF >> .yarnrc
+                yarn-offline-mirror "${yarnOfflineCache}"
+            EOF
+            ${pkgs.yarn}/bin/yarn install --offline \
+              --frozen-lockfile \
+              --ignore-platform \
+              --ignore-scripts \
+              --no-progress \
+              --non-interactive
             ${pkgs.hugo}/bin/hugo server --config ./hugo.toml --watch;
           '';
         };
