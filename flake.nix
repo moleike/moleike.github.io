@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -40,6 +40,7 @@
           buildPhase = ''
             rm -rf themes
             mkdir -p themes
+            ${pkgs.nodePackages.npm}/bin/npm ci
             ln -s ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo --config ./hugo.toml --minify
           '';
@@ -59,9 +60,6 @@
 
         apps.default = flake-utils.lib.mkApp {
           drv = pkgs.writeShellScriptBin "hugo" ''
-            rm -rf themes
-            mkdir -p themes
-            ln -sf ${bearblog} ./themes/hugo-bearblog
             ${pkgs.hugo}/bin/hugo server --config ./hugo.toml --watch;
           '';
         };
