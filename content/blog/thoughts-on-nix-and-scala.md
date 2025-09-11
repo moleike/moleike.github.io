@@ -126,9 +126,9 @@ built-in lockfile feature.
 
 ## Walking through an example
 
-I put up an example sbt project---based on the template at [http4s-io.g8]---with
-Nix flakes. The code is on the following repo:
-[moleike/hello-nix-scala](https://github.com/moleike/hello-nix-scala).
+I put up an example sbt project at [moleike/hello-nix-scala] based on the
+template [http4s-io.g8]. We will build and run a Nix package for this service
+with a local flake.
 
 Sbt has several plugins for creating JARs and executables, below I show two of
 the most commons packaging plugins: stb-assembly and sbt-native-packager.
@@ -415,6 +415,7 @@ explanation of why would you want to use Nix together with Docker.
 [sbt-derivation]: https://github.com/zaninime/sbt-derivation
 [chap-language-support]: https://nixos.org/manual/nixpkgs/stable/#chap-language-support
 [http4s-io.g8]: https://github.com/http4s/http4s-io.g8
+[moleike/hello-nix-scala]: https://github.com/moleike/hello-nix-scala
 [dockertools-discussion]: (https://discourse.nixos.org/t/why-would-someone-use-dockertools-buildimage-over-using-a-dockerfile/23025)
 [multistage]: https://docs.docker.com/build/building/multi-stage/
 [scratch]: https://hub.docker.com/_/scratch
