@@ -51,19 +51,24 @@
                   || baseNameOf path == "public")))
             ./.;
 
+          configurePhase = ''
+            export HOME=$(mktemp -d)
+          '';
+
           buildPhase = ''
-            cat << EOF >> .yarnrc
-                yarn-offline-mirror "${yarnOfflineCache}"
-            EOF
+            yarn config --offline set yarn-offline-mirror ${yarnOfflineCache}
             fixup-yarn-lock yarn.lock
+
             yarn install --offline \
               --frozen-lockfile \
               --ignore-platform \
               --ignore-scripts \
               --no-progress \
               --non-interactive
+
             mkdir -p themes
             ln -s ${bearblog} ./themes/hugo-bearblog
+
             hugo --config ./hugo.toml --minify
           '';
           installPhase = ''
