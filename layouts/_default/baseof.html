@@ -7,9 +7,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   {{- partial "favicon.html" . -}}
   <title>{{- block "title" . }}{{ with .Title }}{{ . }} | {{ end }}{{ .Site.Title }}{{- end }}</title>
-  {{ partialCached "head/css.html" . }}
-  {{ partialCached "head/js.html" . }}
   {{- partial "seo_tags.html" . -}}
+
+  {{- partialCached "head/css.html" . -}}
+  {{- partialCached "head/js.html" . -}}
   <meta name="referrer" content="no-referrer-when-downgrade" />
 
   {{ with .OutputFormats.Get "rss" -}}
