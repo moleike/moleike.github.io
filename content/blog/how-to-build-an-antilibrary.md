@@ -33,4 +33,24 @@ me started with this blog post: _tsundoku_.
 {{< figure src="/images/tsundoku.jpeg" class="center" alt="centering" width="70%">}}
 
 Tsundoku means piling books you haven't read yet. I happen to be an expert at
-tsundoku.
+tsundoku. I buy books almost every month, and keep track of those that I want to
+read (acquired or not) on my goodreads [shelves].
+
+The concept of tsundoku largely overlaps with _antilibrary_, a term coined by
+Umberto Eco and used by Nassim Nicholas Taleb in his book The Black Swan:
+
+> The writer Umberto Eco belongs to that small class of scholars who are
+> encyclopedic, insightful, and nondull. He is the owner of a large personal
+> library (containing thirty thousand books), and separates visitors into two
+> categories: those who react with “Wow! Signore, professore dottore Eco, what a
+> library you have ! How many of these books have you read?” and the others - a
+> very small minority - who get the point that a private library is not an
+> ego-boosting appendage but a research tool. Read books are far less valuable
+> than unread ones. The library should contain as much of what you don’t know as
+> your financial means, mortgage rates and the currently tight real-estate
+> market allows you to put there. You will accumulate more knowledge and more
+> books as you grow older, and the growing number of unread books on the shelves
+> will look at you menancingly. Indeed, the more you know, the larger the rows
+> of unread books. Let us call this collection of unread books an antilibrary.
+
+[shelves]: https://www.goodreads.com/review/list/66613231
