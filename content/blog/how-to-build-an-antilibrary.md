@@ -3,7 +3,7 @@ title: "Did I accidentally build an antilibrary?"
 date: 2024-01-26
 draft: false
 tags:
-  - personal
+  - books
 ---
 
 Last Christmas, I was gifted a nice little book about words that are
@@ -11,26 +11,36 @@ untranslatable to other languages, aptly entitled, _Lost in
 translation_---yes, the same title as the critically acclaimed 2003
 film from Sofia Coppola.
 
-{{< figure src="/images/lost-in-translation-cover.jpg" class="center" alt="centering" width="70%">}}
+{{< figure src="/images/lost-in-translation-cover.jpg" class="center"
+alt="centering" width="70%">}}
 
-These lexical gaps embody concepts or ideas that while only define in one
-language, are often universal. This little book captures more than mere
-curiosity; it is like to finally being able to label complicated emotions and
-experiences I am sure most people can relate to. For instance, the Yiddish word
-_trepverter_ means "a witty comeback you think of only when it is too late to
-use"---I personally can vividly remember a few too many times of trepverter
-pain.
+These lexical gaps embody concepts or ideas that despite termed in only one
+language, to my way of thinking and with a few exceptions, are universal. But
+really what this little book captures is more than mere curiosity; I find it
+rewarding to finally label complicated emotions or experiences I am sure most
+people can relate to. For instance, the Yiddish word _trepverter_ means "a witty
+comeback you think of only when it is too late to use"---I personally can
+vividly remember a few too many times of trepverter pain.
 
-Or the more romantic Arabic term _ya'aburnee_ (يقبرني) means literally
-"You bury me" a declaration of person's hope that they’ll die before another
-person because living without them would be unbearable.
+Or the more romantic Arabic term _ya'aburnee_ (يقبرني) means literally "You bury
+me" a declaration of a person's hope that they’ll die before another person
+because living without them would be unbearable.
 
-The book contains several Japanese terms---not surprised I guess---like the
-popular wabi-sabi, _komorebi_, which describes the subtle yet beautiful
-phenomenon of sunlight leaking through foliage and trees, and the word which got
-me started with this blog post: _tsundoku_.
+The book has also an entry for the ostrich effect, a cognitive bias where one
+ignores potentially negative but useful information, e.g. put off undergoing a
+screening test or checking your account balance when you are overspending. Turns
+out the Dutch have a word for it, _struisvogelpolitiek_. The word comes from the
+legend that ostriches bury their heads in the sand to avoid danger.
 
-{{< figure src="/images/tsundoku.jpeg" class="center" alt="centering" width="70%">}}
+Now that cold plunges are trending, this word seems relevant: _warmduscher_,
+literally German for a warm showerer, i.e. a wimp.
+
+There are a few Japanense words in here too: _komorebi_, which describes the
+subtle yet beautiful phenomenon of sunlight leaking through foliage and trees,
+and the word which got me started with this blog post: _tsundoku_.
+
+{{< figure src="/images/tsundoku.jpeg" class="center" alt="centering"
+width="70%">}}
 
 Tsundoku means piling books you haven't read yet. I happen to be an expert at
 tsundoku. I buy books almost every month, and keep track of those that I want to
