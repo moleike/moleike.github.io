@@ -1,2 +1,9 @@
 .direnv
 **/.DS_Store
+.yarnrc
+.hugo_build.lock
+node_modules/
+public/
+result
+themes/
+yarn-cache/
