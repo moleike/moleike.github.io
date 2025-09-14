@@ -8,10 +8,9 @@ tags:
 
 Last Christmas, I was gifted a nice little book about words that are
 untranslatable to other languages, aptly entitled, _Lost in translation_---yes,
-the same title as the critically acclaimed 2003 film from Sofia Coppola. Now
-this is very related to sociolinguistics, a subject that I find deeply
-interesting since I embarked on my Mandarin Chinese learning journey. I got a
-copy of the Spanish version.
+the same title as the film from Sofia Coppola. Now this is very related to
+sociolinguistics, a subject that I find deeply interesting since I embarked on
+my Mandarin Chinese learning journey. I got a copy of the Spanish version.
 
 {{< figure src="/images/lost-in-translation-cover.jpg" class="center"
 alt="centering" width="70%">}}
