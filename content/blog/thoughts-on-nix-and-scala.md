@@ -120,7 +120,7 @@ error: hash mismatch in fixed-output derivation '...dependencies.tar.zst.drv':
 
 Using a hash is a small nuisance since you need to remember to update the
 attribute `depsSha256` every time you upgrade dependencies. Some packages, e.g.
-`gradle2nix.buildGradlePackage`, `buildRustPackage` or `mkYarnPackage` support
+`gradle2nix.buildGradlePackage`, `buildRustPackage` or `fetchYarnDeps` support
 vendoring dependencies directly from a lockfile, but `sbt` does not provide a
 built-in lockfile feature.
 
