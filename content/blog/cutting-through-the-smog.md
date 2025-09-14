@@ -9,8 +9,6 @@ tags:
   - tutorial
 ---
 
-_Updates: reworded almost all sections, added additional links._
-
 _This tutorial was cross-posted to the [LINE
 Engineering](https://engineering.linecorp.com/en) blog, [here][original-post]._
 
@@ -831,6 +829,8 @@ the repository for the code here: https://github.com/moleike/taiwan-aqi-bot
 In this tutorial we have covered the development of a simple but practical
 chatbot. I hope you enjoyed reading (and perhaps coding along) and maybe help
 you getting started with your own chatbot ideas!
+
+_Updates: reworded almost all sections, added additional links._
 
 [101]: https://en.wikipedia.org/wiki/Taipei_101
 [overview]: https://developers.line.biz/en/docs/messaging-api/overview/
