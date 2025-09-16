@@ -4,11 +4,6 @@
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    bearblog = {
-      url = github:janraasch/hugo-bearblog/939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba;
-      flake = false;
-    };
   };
 
   outputs = {
@@ -16,11 +11,17 @@
     nixpkgs,
     flake-utils,
     treefmt-nix,
-    bearblog,
   }:
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
+
+        bearblog = pkgs.fetchFromGitHub {
+          owner = "janraasch";
+          repo = "hugo-bearblog";
+          rev = "939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba";
+          hash = "sha256-VyWYk06HVJ7E6Io+80mO6qK9U0gRdwUQ8btZ6hBT/Wg=";
+        };
 
         yarnOfflineCache = pkgs.fetchYarnDeps {
           yarnLock = ./yarn.lock;
