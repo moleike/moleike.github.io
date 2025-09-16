@@ -50,7 +50,7 @@
                 && (baseNameOf path
                   == "themes"
                   || baseNameOf path == "public")))
-            ./.;
+            self;
 
           configurePhase = ''
             export HOME=$(mktemp -d)
@@ -69,7 +69,6 @@
 
             mkdir -p themes
             ln -s ${bearblog} ./themes/hugo-bearblog
-
             hugo --config ./hugo.toml --minify
           '';
           installPhase = ''

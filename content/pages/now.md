@@ -1,12 +1,12 @@
 ---
 title: "Now"
 url: "/now/"
-date: 2025-08-29
+lastmod: 2025-08-30
 ---
 
 ## Now
 
-_This page was last updated on {{< current_date >}} and inspired by [Derek Sivers][nownownow]_
+_Last updated on {{<lastmod>}}---inspired by [Derek Sivers][nownownow]_
 
 Spent the summer in Taiwan. 
 
