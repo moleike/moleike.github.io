@@ -20,9 +20,9 @@ that treats packages _as values_, where packages are never overwritten and
 upgrades are done atomically---you can always rollback to a previous state.
 
 Nix has worked reasonably well for my configuration needs, so in this post I
-will briefly explore building a fully-reproducible Scala app with Nix, and how
-to deal with dependencies that are not managed by Nix. Finally we'll see how
-easy is to containerize our app with a very minimal Dockerfile.
+will explore building a fully-reproducible Scala app with Nix, and how to deal
+with dependencies that are not managed by Nix. Finally we'll see how easy is to
+containerize our app with a very minimal Dockerfile.
 
 > I am assuming you the reader are a Scala developer with some basic familiarity
 > with Nix, otherwise you'll find a somewhat uneven treatment of topics, however
