@@ -11,6 +11,8 @@ languageCode = "en-US"
 # Generate a nice robots.txt for SEO
 enableRobotsTXT = true
 
+enableGitInfo = false
+
 [params]
   description = "moleike's blog"
   favicon = "images/favicon.png"
