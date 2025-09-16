@@ -1,22 +1,5 @@
 {
   "nodes": {
-    "bearblog": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1706000723,
-        "narHash": "sha256-VyWYk06HVJ7E6Io+80mO6qK9U0gRdwUQ8btZ6hBT/Wg=",
-        "owner": "janraasch",
-        "repo": "hugo-bearblog",
-        "rev": "939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba",
-        "type": "github"
-      },
-      "original": {
-        "owner": "janraasch",
-        "repo": "hugo-bearblog",
-        "rev": "939a4e9e00e18d07ac8e3ba3f314c4e4b9e9f0ba",
-        "type": "github"
-      }
-    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -53,7 +36,6 @@
     },
     "root": {
       "inputs": {
-        "bearblog": "bearblog",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
