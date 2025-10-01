@@ -17,10 +17,10 @@ and event-driven applications. So, in a certain way, I climbed the ladder.
 
 I have always been captivated by the interplay between theory and practice in
 programming and its relationship with mathematics. Concretely, I enjoy exploring
-theories, techniques and tools for reasoning about programs and building
-dependable software at scale---the discipline known as formal methods. More
-broadly but on the same theme, I have a long-standing interest in logic and its
-many applications.
+tools, trends and theories for reasoning about programs and building dependable
+software at scale---the discipline known as formal methods. More broadly but on
+the same theme, I have a long-standing interest in logic and its many
+applications.
 
 If you want to reach out to me with ideas, projects, or just want to say hi, I
 go by [moleike][keybase]---my anglicised Chinese name---on the usual places.
