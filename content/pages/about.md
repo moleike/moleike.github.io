@@ -17,7 +17,7 @@ and event-driven applications. So, in a certain way, I climbed the ladder.
 
 I have always been captivated by the interplay between theory and practice in
 programming and its relationship with mathematics. Concretely, I enjoy exploring
-tools, trends and theories for reasoning about programs and building dependable
+trends and theories for reasoning about programs and building dependable
 software at scale---the discipline known as formal methods. More broadly but on
 the same theme, I have a long-standing interest in logic and its many
 applications.
