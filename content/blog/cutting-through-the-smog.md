@@ -1,5 +1,5 @@
 ---
-title: "Cutting through the smog: making an air quality bot with Haskell"
+title: "Cutting through the Smog: Making an Air Quality Bot with Haskell"
 date: 2019-05-30
 description: "A Haskell tutorial where I show you how a vigilant bot can help you slash your pollution intake."
 tags:
