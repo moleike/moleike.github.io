@@ -1,5 +1,5 @@
 ---
-title: "Package and deploy Scala programs with Nix and Docker"
+title: "Package and Deploy Scala Programs with Nix and Docker"
 date: 2025-08-30
 description: "Some thoughts on building apps with Nix"
 tags:

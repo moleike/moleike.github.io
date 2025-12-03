@@ -1,5 +1,5 @@
 ---
-title: "Did I accidentally build an antilibrary?"
+title: "Did I Accidentally Build an Antilibrary?"
 date: 2024-01-26
 draft: false
 tags:
