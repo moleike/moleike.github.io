@@ -126,12 +126,20 @@ built-in lockfile feature.
 
 ## Walking through an example
 
-I put up an example sbt project at [moleike/hello-nix-scala] based on the
-template [http4s-io.g8]. We will build and run a Nix package for this service
-with a local flake.
+We will now build and run a web service with Nix flakes using the template at
+[http4s-io.g8]. The code sample is available in [moleike/hello-nix-scala]:
 
-Sbt has several plugins for creating JARs and executables, below I show two of
-the most commons packaging plugins: stb-assembly and sbt-native-packager.
+```zsh
+$ nix run github:moleike/hello-nix-scala
+[io-compute-2] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080
+```
+
+> Notice how easy is to run code with no setup involved, by only having a
+> flake.nix in the root of your project.
+
+Sbt has several plugins for creating JARs
+and executables, below I show two of the most commons packaging plugins:
+stb-assembly and sbt-native-packager.
 
 ### sbt-assembly
 
@@ -204,15 +212,7 @@ $ readlink result
 Running `nix derivation show` prints the results in the Nix store from
 evaluating this package.
 
-To run our HTTP service:
-
-```zsh
-$ nix run
-warning: Git tree '/Users/amoreno/Playground/hello-nix-scala' is dirty
-[io-compute-2] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080
-```
-
-`nix run` simply calls $out/bin/hello-nix-scala.
+Finally, to run the app you just need to call `nix run`.
 
 ### sbt-native-packager
 
