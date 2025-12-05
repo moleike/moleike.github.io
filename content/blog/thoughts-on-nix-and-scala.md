@@ -168,12 +168,8 @@ The contents of the `flake.nix` are:
           inherit version;
           src = ./.;
           depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
-          buildPhase = ''
-            sbt assembly
-          '';
-          installPhase = ''
-            install -T -D -m755 target/scala-3.3.3/${name}.jar $out/bin/${name}
-          '';
+          buildPhase = "sbt assembly";
+          installPhase = "install -T -D -m755 target/${name}.jar $out/bin/${name}";
         };
       }
     );
@@ -186,7 +182,7 @@ having hardcoded the JAR file name:
 
 ```scala
 assembly / assemblyJarName := "hello-nix-scala.jar",
-
+assembly / assemblyOutputPath := file(s"target/${(assembly/assemblyJarName).value}"),
 ```
 
 And also to prepend a launch script to the fat JAR:
