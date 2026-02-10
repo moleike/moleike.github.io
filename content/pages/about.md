@@ -13,11 +13,12 @@ inadvertently worked my way up from hardware design to kernel and low-level
 programming of embedded systems to building real-time streaming data pipelines
 and event-driven applications. So, in a certain way, I climbed the ladder.
 
-I believe that software engineering demands the same rigour as the other
-engineering disciplines, and especially programming in the large needs formal
-approaches grounded in mathematics to manage complexity and eliminate ambiguity.
-More broadly but on the same theme, I have a long-standing interest in logic and
-its many applications.
+I believe that software engineering demands the same rigor as other engineering
+disciplines. This requires formal approaches that are grounded in mathematics to
+eliminate ambiguity but—crucially—scale to manage complexity in
+programming-in-the-large. Setting practical concerns aside, I have a general
+interest in logic, a sweepingly broad subject that touches philosophy,
+mathematics, and computer science.
 
 Since childhood, one of my most defining traits has been my passion for 'peeking
 under the hood' of things, and I remember being mesmerized by what at the time
