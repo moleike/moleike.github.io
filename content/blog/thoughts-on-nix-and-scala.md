@@ -166,10 +166,17 @@ The contents of the `flake.nix` are:
         packages.default = sbt.mkSbtDerivation.${system} {
           pname = name;
           inherit version;
+          depsSha256 = "sha256-2FAQwzKu7ADT5D2HPLNcrM/7OSUZcGMyQ6P6f1xWq9U=";
           src = ./.;
-          depsSha256 = "sha256-xSKC0PRl/8OQwFtxUycNGWenagQOTHW3R5CeUimdZes=";
+          nativeBuildInputs = with pkgs; [makeWrapper];
           buildPhase = "sbt assembly";
-          installPhase = "install -T -D -m755 target/${name}.jar $out/bin/${name}";
+          installPhase = ''
+            install -T -D -m755 target/${name}.jar $out/bin/${name}
+          '';
+          postFixup = ''
+            wrapProgram $out/bin/${name} \
+              --prefix PATH : ${nixpkgs.lib.makeBinPath [ pkgs.jdk_headless ]}
+          '';
         };
       }
     );
@@ -178,11 +185,16 @@ The contents of the `flake.nix` are:
 
 As mentioned earlier, the sha256 needs to be updated on a first build, and we
 override the derivation build and install phases. The code above relies on
-having hardcoded the JAR file name:
+having hardcoded the JAR file path:
 
 ```scala
-assembly / assemblyJarName := "hello-nix-scala.jar",
-assembly / assemblyOutputPath := file(s"target/${(assembly/assemblyJarName).value}"),
+lazy val root = (project in file("."))
+  .settings(
+    organization := "io.moleike",
+    name := "hello-nix-scala",
+    # ...,
+    assembly / assemblyOutputPath := file(s"target/${name.value}.jar"),
+  )
 ```
 
 And also to prepend a launch script to the fat JAR:
