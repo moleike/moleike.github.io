@@ -51,7 +51,7 @@ enableGitInfo = false
     codeFences = true
     noClasses = true
     lineNos = false
-    style = 'monokai'
+    style = 'gruvbox'
     tabWidth = 2
 
 [menu]

@@ -1,0 +1,695 @@
+---
+title: "Staged Parser Combinators in Scala: Have Your Cake and Eat It (Too)"
+date: 2026-03-02
+draft: true
+tags:
+  - programming
+  - performance
+  - scala
+  - parsing
+  - macros
+  - multi-stage programming
+  - partial evaluation
+---
+
+Parser combinators have a reputation of poor performance---worst-case
+exponential time---and deemed good for prototyping but not for production. Or so
+the story goes. While techniques like Packrat parsing or static analysis offer
+linear-time guarantees by addressing naive backtracking, they come with their
+own trade-offs.
+
+In this post, I want to explore an optimization route that complements the
+others: avoiding the performance penalty of abstraction.
+
+By leaning into Scala 3's metaprogramming capabilities, our combinators combine
+_code fragments_. By moving to a _staged_ continuation-passing style (CPS)
+encoding, we make the control flow explicit and continuations are fully
+evaluated at compile time. The result is a parser that runs over 10x faster than
+a standard non-staged version. Interestingly, this approach is deeply rooted in
+program optimization history, closely mirroring the [First Futamura
+Projection](https://arxiv.org/abs/1611.09906).
+
+## Multi-stage programming (MSP)
+
+TODO
+
+- The quote block `'{..}` captures syntax
+- Splices `${..}`, which evaluate and insert code into quotes
+
+## Parser combinators
+
+Parser combinators are used to derive recursive descent parsers that are very
+similar to the grammar of a language, and translating a grammar into a program
+tends to be strikingly simple and mechanical. Consider, for example, an
+s-expression grammar for strings like `(a0(b1(c2(d3))e5)f6)`:
+
+```ebnf
+letter = "a" | ... | "z" | "A" | ... | "Z"
+digit  = "0" | ... | "9"
+
+sexp   = sym | seq
+sym    = letter (letter | digit)*
+seq    = "(" sexp* ")"
+```
+
+This EBNF grammar would loosely translate to the following Scala code:
+
+```scala
+enum Sexp:
+  case Sym(name: String)
+  case Seq(items: List[Sexp])
+
+val letter = satisfy(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+val digit  = satisfy(c => c >= '0' && c <= '9')
+
+lazy val sexp: Parser[Sexp] = sym | seq
+lazy val sym: Parser[Sexp] = (letter ~ (letter | digit).many).map(Sym(_))
+lazy val seq: Parser[Sexp] = defer(sexp).many.between('(', ')').map(Seq(_))
+```
+
+Notice how closely the Scala code mirrors the BNF grammar. Together with
+primitives like `satisfy`, you can build parsers for any context-free language
+using mainly the combinators for sequential (~) and alternative (|) composition,
+and a defer (or fix) combinator for recursion. Adding a few more common
+combinators, we can define a small but powerful compositional DSL for parsing.
+The combinator many is the counterpart for EBNF *. Later we develop a full-dress
+library of combinators that covers many common needs.
+
+Note that in a practical combinator library you'd want to restrict the grammar
+you accept to guarantee performance—such as enforcing left factoring or
+eliminating left-recursion.
+
+Parsers of this kind usually have applicative structure (via the ~ and map
+above), and a monadic interface is also possible (Parsec-style) for
+context-sensitive parsing, but that extra power precludes static analysis---more
+on this later.
+
+
+## Staging a parser type from the ground up
+
+Before we can even begin talking about staging a parser, we need to first agree
+on what we mean by a parser. Here's a
+[rhyme](https://people.willamette.edu/~fruehr/haskell/seuss.html):
+
+>  A Parser for Things\
+>  is a function from Strings\
+>  to Lists of Pairs\
+>  of Things and Strings!
+
+If we translate it to Scala, we get a parser for _ambiguous_ grammars:
+
+```scala
+trait Parser[A] extends (String => List[(A, String)]):
+  def parse(input: String): Option[A] =
+    this(input).collectFirst {
+      case (result, leftover) if leftover.isEmpty => result
+    }
+```
+
+this(input) returns a list of potential successes (handling ambiguity). Each
+success is a pair: the parsed value A and the String that wasn't consumed. With
+`collectFirst` we find the first valid result, and if there's none then we
+return `None`.
+
+However that is too general. It is safe to assume that most practical grammars
+are not _inherently ambiguous_ and common data formats like JSON or TOML are
+designed to be unambiguous (and in fact LR(1) or LL(1)), so we can essentially
+remove the non-determinism:
+
+```scala
+trait Parser[A] extends (String => Option[(A, String)]):
+  def parse(input: String): Option[A] = 
+    this(input).map(_._1)
+```
+
+But we still can do better. By returning `Option[(A, String)]` (a value
+together with the leftover string), we are using `String.substring(n)`
+internally, which means for every value parsed you are allocating a string
+and increasing GC pressure unnecessarily.
+
+```scala
+trait Parser[A] extends ((String, Int) => Option[(A, Int)]):
+  def parse(input: String): Option[A] =
+    this(input, 0).map(_._1)
+```
+
+Users need precise feedback to fix their syntax errors, so an Option is kind of
+a non-starter. We will not develop further error reporting, but since now we
+have the current offset as part of the parser input, we can provide meaningful
+error messages (line+column) with some helpers.
+
+```scala
+case class ParseFailure(offset: Int)
+
+type Result[A] = Either[ParseFailure, A]
+
+trait Parser[A] extends ((String, Int) => Result[(A, Int)]):
+  def parse(input: String): Result[A] =
+    this(input, 0).map(_._1)
+```
+
+Ok, we are getting closed to a _minimum viable_ parser. One final requirement is
+the ability to represent recursive grammars, like the s-expression we defined
+earlier:
+
+```scala
+lazy val sexp: Parser[Sexp] = sym | seq
+lazy val seq: Parser[Sexp] = defer(sexp).many.between('(', ')').map(Seq(_))
+```
+
+Here we have a chicken-and-egg problem. The call to defer breaks that (we'll
+talk more about `defer` later).
+
+Parallel to this, you can't guarantee stack safety for complex, mutually
+recursive grammars---JVM does not support TCO or TCMC. We'll use a trampoline to
+make sure both nesting and repetition work for arbitrarily deep (long) chains of
+characters:
+
+```scala
+import scala.util.control.TailCalls.TailRec
+
+trait Parser[A] extends ((String, Int) => TailRec[Result[(A, Int)]]):
+  def parse(in: String): Result[A] =
+    this(in, 0).result.map(_._1)
+```
+
+And that was the last refinement, for our parser type. With this Parser
+definition we can build simple (non-staged) stackless parsers and combinators. A
+simple choice combinator would be defined as follows:
+
+```scala
+def |(that: Parser[A]): Parser[A] = (in, off) =>
+  this(in, off).flatMap {
+    case Right(v) => done(Right(v))
+    case Left(_)  => that(in, off)
+  }
+```
+
+Now that we have a type that covers our bases, we switch our attention to
+metaprogramming. The whole idea of staging a parser is that we can exploit the
+fact that the grammar is known at compile-time, and we can neatly separate the
+dynamic parts (the input string) from the static parts (the combinators),
+through quoting and splicing---all within the safety net of hygenic macros and
+multi-stage machinery.
+
+### Staging the parser
+
+We could straightforward lift the previous Parser into a _staging_ lambda by
+simply wrapping the inputs and outputs inside `Expr`s:
+
+```scala
+import scala.quoted.Expr
+
+trait Parser[A] extends (
+    (Expr[String], Expr[Int]) => Expr[TailRec[Result[(A, Int)]]]
+  )
+```
+
+By doing this, we have essentially mutated the parser into a parser _generator_.
+Instead of parsing a string it _writes the code_ that will parse a string. The
+choice operator now is a _meta_-choice combinator and has the following
+definition:
+
+
+```scala
+def |(that: Parser[A])(using Quotes): Parser[A] = (in, off) => '{
+  ${ this(in, off) }.flatMap {
+    case Right(v) => done(Right(v))
+    case Left(_)  => ${ that(in, off) }
+  }
+}
+```
+
+Naively staging the parser buys us very little. In the | combinator, we
+splice in 'this' to generate an `Expr[TailRec[Result]]`, but we still evaluate
+it with .flatMap at runtime. Because the input string `in` is a runtime value,
+and it is needed in order to pattern match the result, the entire body is
+delayed to the runtime stage, completely wasting the fact that the structure of
+the grammar rules are known statically. Even worse, the generated bytecode
+balloons in size—a problem I'll cover shortly.
+
+### Staging the control flow
+
+To avoid that the entire expression becomes _dynamic_, we need to break this
+dependency. Instead of generating an Either that implicitly tells you what to do
+next, we could make the control flow _explicit_, by performing a CPS conversion.
+In CPS, a parser doesn't return a value. Instead, it takes continuations:
+
+```scala
+type Res     = TailRec[Unit]
+type Succ[A] = (Expr[A], Expr[Int]) => Expr[Res]
+type Fail    = Expr[Int] => Expr[Res]
+
+case class Cont[A](succ: Succ[A], fail: Fail)
+
+trait Parser[A] extends ((Expr[String], Expr[Int], Cont[A]) => Expr[Res])
+```
+
+To encode the fact that a parser can fail, we provide two continuations: `succ`
+and `fail`. On a staged parser continuations are compile-time functions, and so
+they do not exist at runtime---unlike Either values. We maintain the trampoline
+for stack safety. This is where the magic happens. The choice combinator for a
+CPSed parser becomes:
+
+```scala
+def |(that: Parser[A])(using Quotes): Parser[A] =
+  (in, off, k) =>
+    this(in, off, Cont(k.succ, f1 =>
+      that(in, off, Cont(k.succ, f2 =>
+        k.fail('{
+          if $f1 > $f2 then
+            $f1
+          else $f2
+        }))
+      ))
+    )
+```
+
+When a parser succeeds, it doesn't wrap the result in an Either; it simply
+invokes k.succ, seamlessly splicing the AST of the next parser directly into the
+success path. And because every next parser does the exact same thing, you are
+essentially _fusing_ the entire remaining grammar together.
+
+Contrast this with (naive) unstaged parsers, where chains of combinators build
+deeply nested closure objects on the heap, together with all the other
+intermediate allocations needed at the boundaries, limiting parsing throughput.
+Multi-stage programming allows us to keep the abstraction and beauty of parser
+combinators, while pre-computing their structure at an earlier stage, generating
+code looking like a handwritten parser.
+
+### Context is King
+
+One final (promise 🤞) refinement. The Parser is a staging function and thus
+most of our code will require a `(using Quotes)` to quote and splice
+expressions. However, because our entire combinator DSL _exclusively_ returns
+Parsers, we can solve this be making Parser a [context
+function](context-functions):
+
+```scala
+trait Gen[A] extends ((Expr[String], Expr[Int], Cont[A]) => Expr[Res])
+
+type Parser[A] = Quotes ?=> Gen[A]
+```
+
+This has a cascading effect, since any grammar you define with the combinator
+library does not need to concern itself with a context parameter required for
+implementation reasons.
+
+[context-functions]: https://docs.scala-lang.org/scala3/reference/contextual/context-functions.html
+
+### The elephant in the room 
+
+Because Expr represents an AST, if `k.succ` is a massive block of generated
+code, the compiler literally duplicates that code into your program bytecode. If
+your parser is nesting a few | and ~ combinators, **your generated code grows
+exponentially**---until the JVM eventually refuses to compile it. This
+particular problem can be mitigated with _join points_.
+
+
+Talk about shallow and deep embeddings?
+
+
+Ok, perhaps enough of beating around the bush. It's time for some actual parsers.
+
+## Putting the "parser" in parser combinators
+
+Surely we need a way to parse terminal symbols:
+
+```scala
+def string(s: String): Parser[String] =
+  (in, off, k) =>
+    '{
+      if ($in.startsWith(${ Expr(s) }, $off))
+        ${ k.succ(Expr(s), '{ $off + ${ Expr(s.length) } }) }
+      else
+        ${ k.fail(off) }
+    }
+```
+
+Notice how carefully you need to manage staging boundaries here. The if-else
+expression as a whole is quoted. The `s` parameter is a compile-time variable
+(Stage 0), we cannot just reference it inside the quote. Instead, we use Expr(s)
+to lift the string's value into a quote, and then splice into the outer quote.
+Similarly, we splice the continuations.
+
+`satisfy` is another basic building block, here defined as an `inline` function
+to hide staging from users---ideally a user should not need to quote anything:
+
+```scala
+inline def satisfy(inline f: Char => Boolean): Parser[Char] =
+  (in, off, k) =>
+    '{
+      if ($off < $in.length && f($in.charAt($off)))
+        ${ k.succ('{ $in.charAt($off) }, '{ $off + 1 }) }
+      else 
+        ${ k.fail(off) }
+    }
+
+inline def char(inline c: Char): Parser[Char] = 
+  satisfy(_ == c)
+
+inline def digit: Parser[Char] = 
+  satisfy(c => c >= '0' && c <= '9')
+```
+
+Scannerless means dealing with whitespace:
+
+```scala
+def ws: Parser[Unit] =
+  (in, off, k) =>
+    '{
+      val n = $in.indexWhere(!_.isWhitespace, $off)
+      val next = if n == -1 then $in.length else n
+      ${ k.succ('{ () }, 'next) }
+    }
+```
+
+A useful addition might be a staged parser reified from a direct-style parser---a
+sort of escape hatch:
+
+```scala
+inline def apply[A: Type](inline p: (String, Int) => Option[(A, Int)])
+  : Parser[A] =
+  (in, off, k) =>
+    '{
+      p($in, $off) match
+        case Some((a, next)) =>
+          ${ k.succ('a, 'next) }
+        case None =>
+          ${ k.fail(off) }
+    }
+```
+
+From this new factory method we can provide a regex parser:
+
+```scala
+import scala.util.matching.Regex
+import scala.quoted.*
+
+def regex(r: Regex): Parser[String] =
+  Parser { (in, off) =>
+    r.findPrefixMatchOf(in.substring(off)).map(m => (m.matched, off + m.end))
+  }
+```
+
+This goes to show a library user does not need to worry about continuations. All
+that remains now is to define the main suite of combinators to build
+context-free grammars and the final plumbing to get a parser function from the
+macros. We will use a simple JSON parser as an example and run some benchmarks.
+
+## Staging the combinators
+
+Following tradition, a natural fit for an applicative or monoidal-style
+combinator API would be to derive instances of [Cats][cats] type classes.
+However, we would get stuck. The fundamental mismatch is staging: because we
+need to manipulate ASTs, we need a quotation context  and type
+information made explicit to avoid type erasure across stages. The types simply
+do not align.
+
+[cats]: https://typelevel.org/cats/
+
+However, the parser combinator API we provide is _almost_ standard, with
+mapping, sequence, choice, recursion and _iteration_ as a separate combinator
+(fold)---we'll see why later.
+
+```scala
+extension [A: Type](p: Parser[A])
+  inline def map[B: Type](inline f: A => B): Parser[B] =
+    (in, off, k) =>
+      p(in, off, Cont((a, next) => k.succ('{ f($a) }, next), k.fail))
+```
+
+Transforming parsed text into domain objects gives a functor.
+
+
+```scala
+inline def pure[A: Type](inline value: A): Parser[A] =
+  (_, off, k) => k.succ('{value}, off)
+
+extension [A: Type](p: Parser[A])
+  def ~[B: Type](that: Parser[B]): Parser[(A, B)] =
+    (in, off, k) =>
+      p(in, off,
+        Cont((a, o1) =>
+            that(
+              in, o1,
+              Cont((b, o2) => k.succ('{ ($a, $b) }, o2), k.fail)
+            ),
+          k.fail
+        )
+      )
+```
+
+Lifting a pure value and concatenation (~) forms an Applicative parser
+
+```scala
+inline def empty[A: Type]: Parser[A] =
+  (_, off, k) => k.fail(off)
+
+extension [A: Type](p: Parser[A])
+  def |(that: Parser[A]): Parser[A] =
+    (in, off, k) =>
+      p(in, off,
+        Cont(k.succ,
+          f1 =>
+            that(in, off,
+              Cont(k.succ,
+                f2 => k.fail('{ if $f1 > $f2 then $f1 else $f2 }))
+            ))
+      )
+```
+
+By introducing a parser that fails (empty) and a choice operator (|), our parser
+exhibits an Alternative (or MonoidK) structure.
+
+### Recursion
+
+We are going to implement recursive grammars with a fixed point operator.
+Staging Landin's knot is perhaps the gnarliest bit of code to get right in the
+parser---or at least the one which gave me the most trouble.
+
+```scala
+def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
+  lazy val self: Parser[A] = (in, off, k) => 
+    f(self)(in, off, k)
+  self
+```
+
+Consider a simple nested array. 
+
+```scala
+val arr: Parser[List[Any]] = fix { self =>
+  char('[') *> self <* char(']')
+}
+```
+
+When the compiler evaluates arr, it calls fix(f), which returns the lazy self
+parser. To generate the final syntax tree, the compiler must expand self, which
+immediately triggers the evaluation of f. The compiler generates
+the AST for char('['), but then it encounters self in the sequence. Because the
+macro eagerly attempts to resolve the entire tree at compile-time, it expands
+self a second time. This blindly calls f again, generating another char('['),
+which _hits self again_...you get the idea.
+
+Essentially we are asking the compiler to unroll a recursive grammar for a
+language that is potentially infinite into a flat, finite AST. We
+must stop the compiler from unrolling the grammar---of course the recursion has
+to happen at runtime.
+
+But then we hit another problem: we need self to somehow honour its
+continuations (Cont[A]). But these are not runtime closures, just syntax trees
+holding the rest of the parser's logic (like parsing the closing `]`).
+Thankfully staging allows us to move code from one stage to the next:
+
+```scala
+object Cont:
+  def apply[A: Type](k: Expr[((Any, Int) => Res, Int => Res)])(
+    using Quotes
+  ): Cont[A] =
+    Cont(
+      (v, n) => '{ $k._1($v, $n) },
+      fOff => '{ $k._2($fOff) }
+    )
+
+  def lower[A: Type](k: Cont[A])(
+    using Quotes
+  ): Expr[((Any, Int) => Res, Int => Res)] =
+    '{
+      (
+        (v: Any, n: Int) => ${ k.succ('{ v.asInstanceOf[A] }, 'n) },
+        (fOff: Int) => ${ k.fail('fOff) }
+      )
+    }
+```
+
+With `Cont.lower` acting as our bridge, we can finally introduce a boundary
+between self generation and the runtime recursion:
+
+```scala
+def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
+  (in, off, k) =>
+    '{
+      def loop(o: Int, k: ((Any, Int) => Res, Int => Res)): Res = ${
+        val self: Parser[A] = (_, nOff, nK) => 
+          '{ tailcall(loop($nOff, ${ Cont.lower(nK) })) }
+        
+        f(self)(in, 'o, Cont('k))
+      }
+      
+      tailcall(loop($off, ${ Cont.lower(k) }))
+    }
+```
+
+The `loop` ties the knot now, avoiding the trap, and `self` stages a loop
+iteration (with a tailcall guard). Finally, `fix` jumpstarts the loop.
+
+We can now derive `defer`, which gives us a lightweight syntax to define
+recursive grammars:
+
+```scala
+def defer[A: Type](p: => Parser[A]): Parser[A] =
+    var ref: Parser[A] = null
+    
+    (in, off, k) =>
+      if ref != null then ref(in, off, k)
+      else fix[A] { self =>
+        (i, o, nk) =>
+          ref = self
+          p(i, o, nk)
+      }(in, off, k)
+```
+
+### Repetition
+
+Kleene star can be succintly defined via mutual recursion. However, fold
+(foldLeft) gives us an alternative route to define repetition (many) and some
+other specialized combinators with better performance that with a fixed point
+operator. 
+
+The basic idea is to use fold for things that grow _horizontally_ (repetition)
+and fix for things that grow _vertically_ (nesting). 
+
+For `fix` to do its magic, we had to stage the continuations. We had no control
+over the continuations, because they are hidden in the function the user
+supplies. Folding applies a _known_ parser zero or more times and accumulates
+the result.
+
+```scala
+extension [A: Type](p: Parser[A])
+  inline def fold[B: Type](inline b: B)(inline f: (B, A) => B): Parser[B] =
+    (in, off, k) =>
+      '{
+        def loop(cOff: Int, acc: B): Res = ${
+          p(in, 'cOff,
+            Cont(
+              (a, next) =>
+                '{
+                  tailcall(loop($next, ${ Expr.betaReduce('{ f(acc, $a) }) }))
+                },
+              _ => k.succ('acc, 'cOff)
+            )
+          )
+        }
+        tailcall(loop($off, b))
+      }
+```
+
+Since we know what to do if the parser succeeds (try again!), we can inline the
+continuation in `p`, makeing `fold` a while loop.
+
+Repetition is perhaps the only operation where the trampoline is strictly needed
+for safety---note that in a CPS'd parser you do not return a value, so you can't
+annotate the loop with @tailrec.
+
+## Combinators all the way down
+
+A rich DSL can be derived from the core operations above:
+
+```scala
+extension [A: Type](p: Parser[A])
+  def *>[B: Type](other: Parser[B]): Parser[B] =
+    (p ~ other).map(_._2)
+
+  def <*[B: Type](other: Parser[B]): Parser[A] =
+    (p ~ other).map(_._1)
+
+  def many: Parser[List[A]] =
+    p.fold(List.empty[A])((acc, a) => a :: acc).map(_.reverse)
+
+  def many1: Parser[List[A]] =
+    (p ~ p.many).map(_ :: _)
+
+  def skipMany: Parser[Unit] =
+    p.fold(())((_, _) => ())
+
+  def skipMany1: Parser[Unit] =
+    p *> p.skipMany
+
+  def sepBy[B: Type](sep: Parser[B]): Parser[List[A]] =
+    sepBy1(sep) | pure(List.empty[A])
+
+  def sepBy1[B: Type](sep: Parser[B]): Parser[List[A]] =
+    (p ~ (sep *> p).many).map(_ :: _)
+
+  def ? : Parser[Option[A]] =
+    p.map(Option(_)) | pure(None)
+```
+
+## A JSON Parser
+
+```scala
+enum Json {
+  case JObject(fields: Map[String, Json])
+  case JArray(items: List[Json])
+  case JBoolean(value: Boolean)
+  case JString(value: String)
+  case JNumber(value: Double)
+  case JNull
+}
+```
+
+```scala
+val json: Parser[Json] = fix: self =>
+  import Json.*
+
+  val jNull = string("null").as(JNull)
+  val jBool =
+    (string("true").as(true) | string("false").as(false)).map(JBoolean(_))
+  val jStr = takeUntil('"').between('"', '"').map(JString(_))
+  val jNum = takeWhile1(c => c == '-' || c == '.' || c.isDigit).map(
+    _.toDouble
+  ).map(JNumber(_))
+  val jArr = self.sepBy(tok(',')).between('[', ']').map(JArray(_))
+  val jObj = ((str <* tok(':')) ~ self).sepBy(tok(',')).between('{', '}')
+    .map(fs => Json.JObject(fs.toMap))
+
+  jNull | jBool | jNum | jStr | jArr | jObj
+
+def impl(using Quotes): Expr[String => Either[ParseFailure, Json]] =
+  json.compileToExpr
+```
+
+```scala
+inline def compiled: String => Option[Json] = ${ impl }
+val parse: String => Option[Json] = compiled
+val result = parse("""{"status": true}""")
+println(result)
+```
+
+## Benchamarks
+
+Combining Scala 3 staging (metaprogramming) with trampolined continuations to
+build a stackless parser combinator library, we get both safety and high
+performance, without compromising the expressiveness of combinators.
+
+
+Use fold for things that grow "horizontally" (repetition) and fix for things
+that grow "vertically" (nesting).
+
+Introduce continuations:
+
+
+```scala
+val nested = "(" * 5000 + "foo" + ")" * 5000
+assert(sexpParse(nested).isDefined)
+```
