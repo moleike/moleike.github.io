@@ -14,10 +14,10 @@ programming of embedded systems to building real-time streaming data pipelines
 and event-driven applications. So, in a certain way, I climbed the ladder.
 
 I have always been captivated by the interplay between theory and practice in
-programming and its relationship with mathematics. Concretely, I enjoy exploring
-trends, tools and techniques for reasoning about programs. More broadly but on
-the same theme, I have a long-standing interest in logic and its many
-applications.
+programming and its relationship with mathematics. I enjoy exploring tools and
+theories aim to manage complexity and eliminate ambiguity in software
+engineering. More broadly but on the same theme, I have a long-standing interest
+in logic and its many applications.
 
 Since childhood, one of my most defining traits has been my passion for 'peeking
 under the hood' of things, and I remember being mesmerized by what at the time
