@@ -36,28 +36,62 @@ combining macros and staging. Multi-stage programming formalizes the idea of
 evaluating programs in distinct temporal phases or _stages_. By dividing program
 evaluation into stages we decide _when_ computation happens---which in practical
 terms mean either at compile-time or runtime. To move across stages _safely_
-Scala enforces a strict phase distinction with quotations:
+Scala enforces a strict phase distinction with _quotations_:
 
 * Level **0**: normal code execution.
-* Level +1: code inside a quote `'{..}` captures syntax---typed ASTs.
+* Level +1: code inside a quote `'{..}` captures syntax---typed ASTs---deferring
+  execution to the next phase.
 * Level -1: code inside a splice `${..}` drops down a level to be evaluated
   immediately.
   
 Staging a program `p` of type `A` using a quote results in an unevaluated
 expression of type `Expr[A]`. Conversely, splicing a staged expression `e` of
-type `Expr[A]` evaluates it into code of type `A`. If a quote is well typed,
-then the generated code is well typed.
+type `Expr[A]` evaluates it into code of type `A`. Importantly, if a quote is
+well typed, then the generated code is well typed. Because the compiler tracks
+quotation levels (phase consistency), you can't accidentally use a runtime
+variable at compile time, so if your program compiles, it's _well-staged_.
+
+```scala
+def id[A: Type](value: Expr[A])(using Quotes): Expr[A] = 
+  '{ val a: A = $value; a }
+```
+
+This `id` is a _code generator_: it takes an AST and generates another one.
+Scala requires both a given `Quotes` to create quoted code `'{..}`, and the
+type class `Type[A]` to carry type information across stages. Let's see an example:
+
+```scala
+val result = id('{ 3 + 5 })
+```
+
+When the compiler evaluates the code, it uses the `Type[Int]` to correctly type value `a`
+
+```scala
+'{ val a: Int = $value; a }
+```
+
+The compiler sees `$value` and pastes the AST `'{ 3 + 5 }'`:
+
+```scala
+'{ val a: Int = ${ '{ 3 + 5 } }; a }
+```
 
 Since quotes and splices shift exactly one level in opposite directions, they
-exhibit a cancellation property: `${ '{e} } = e` and `'{ ${e} } = e`. Because
-the compiler tracks quotation levels (phase consistency), you can't accidentally
-use a runtime variable at compile time, so if your program compiles, it's
-_well-staged_.
+exhibit a cancellation property: `${ '{e} } = e` and `'{ ${e} } = e`: 
+
+```scala
+'{ val a: Int = 3 + 5; a }
+```
+
 
 Where do macros fit in? In Scala 3, a macro is simply an inline function
-containing a _top-level splice_ (`${..}`). The inline keyword forces compile-time
-expansion, while the splice drops down a level to evaluate our staged
-computation, injecting the resulting generated code into the program.
+containing a _top-level splice_ (`${..}`). The inline keyword forces
+compile-time expansion, while the splice drops down a level to evaluate the
+staged computation, injecting the resulting generated code into the program.
+
+```scala
+inline def id[A](inline value: A): A = ${ id('{ value }) }
+```
 
 Instead of writing one massive, monolithic macro (which is how code generation
 usually feels), you build your final program by composing functions.
@@ -764,6 +798,25 @@ extension [A: Type](p: Parser[A])
       )
 ```
 
+## Generating the final parser
+
+```scala
+extension [A: Type](p: Parser[A])
+  def compileToExpr(using Quotes): Expr[String => Either[ParseFailure, A]] =
+    val pp = p.asInstanceOf[Gen[Any]]
+
+    '{ (in: String) =>
+      var res: Either[ParseFailure, Any] = uninitialized
+      ${
+        pp('{ in }, '{ 0 }, Cont(
+          (v, off) => '{ res = Right($v); done(()) },
+          fOff => '{ res = Left(ParseFailure($fOff)); done(()) }
+        ))
+      }.result
+      res.asInstanceOf[Either[ParseFailure, A]]
+    }
+```
+
 We are now ready to take our parser combinators for a spin!
 
 ## A JSON Parser
@@ -795,9 +848,11 @@ val json: Parser[Json] = fix: self =>
     .map(fs => Json.JObject(fs.toMap))
 
   jNull | jBool | jNum | jStr | jArr | jObj
+```
 
-def impl(using Quotes): Expr[String => Either[ParseFailure, Json]] =
-  json.compileToExpr
+```scala
+def impl(using Quotes) = json.compileToExpr
+inline def jsonParse: String => Either[ParseFailure, Json] = ${ impl }
 ```
 
 ```scala
