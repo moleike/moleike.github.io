@@ -24,10 +24,17 @@ others: avoiding the performance penalty of abstraction.
 By leaning into Scala 3's metaprogramming capabilities, our combinators combine
 _code fragments_. By moving to a _staged_ continuation-passing style (CPS)
 encoding, we make the control flow explicit and continuations are fully
-evaluated at compile time. The result is a parser that runs over 10x faster than
-a standard non-staged version. Interestingly, this approach is deeply rooted in
-program optimization history, closely mirroring the [First Futamura
+evaluated at compile time. Results show that a staged parser runs ~30% faster
+than a handwritten recursive descent parser and over 25x faster than a
+non-staged version. Interestingly, this approach is deeply rooted in partial
+evaluation history, closely mirroring the [First Futamura
 Projection](https://arxiv.org/abs/1611.09906).
+
+The code used throughout the post is available in [this gist][gist]. The main
+combinator library plus some example parsers is just ~230 sloc, while a
+non-staged combinator library implemented with Cats is 150 sloc.
+
+[gist]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b
 
 ## Multi-stage programming (MSP)
 
@@ -49,16 +56,17 @@ expression of type `Expr[A]`. Conversely, splicing a staged expression `e` of
 type `Expr[A]` evaluates it into code of type `A`. Importantly, if a quote is
 well typed, then the generated code is well typed. Because the compiler tracks
 quotation levels (phase consistency), you can't accidentally use a runtime
-variable at compile time, so if your program compiles, it's _well-staged_.
+variable at compile time, so if your program compiles, it's _well-staged_. Let's
+see an example:
 
 ```scala
 def id[A: Type](value: Expr[A])(using Quotes): Expr[A] = 
   '{ val a: A = $value; a }
 ```
 
-This `id` is a _code generator_: it takes an AST and generates another one.
-Scala requires both a given `Quotes` to create quoted code `'{..}`, and the
-type class `Type[A]` to carry type information across stages. Let's see an example:
+This `id` function is a _code generator_: it takes an AST and generates another
+one. Scala requires both a given `Quotes` to create quoted code `'{..}`, and the
+type class `Type[A]` to carry type information across stages.
 
 ```scala
 val result = id('{ 3 + 5 })
@@ -104,7 +112,9 @@ runtime input, we can transform a high-level recursive DSL into a specialized
 parser that eliminates the traditional overhead of abstraction in combinator
 libraries.
 
-(Note: the Scala docs provide a much deeper and less rushed intro to MSP [here][macros].)
+(Note: this was a rather rushed intro to multi-stage programming in Scala,
+checking out the official language reference [here][macros] is a great next
+step.)
 
 [macros]: https://docs.scala-lang.org/scala3/reference/metaprogramming/macros.html
 
@@ -367,48 +377,13 @@ implementation reasons.
 
 [context-functions]: https://docs.scala-lang.org/scala3/reference/contextual/context-functions.html
 
-### The elephant in the room 
-
-Because Expr represents an AST, if `k.succ` is a massive block of generated
-code, the compiler literally duplicates that code into your program bytecode. If
-your parser is nesting a few | and ~ combinators, **your generated code grows
-exponentially**---until the JVM eventually refuses to compile it. This
-particular problem can be mitigated with _join points_.
-
-A join point is like a let-binding, basically you'd need to identify when you are duplicating a continuation, and instead insert a local function:
-
-
-```scala {hl_lines=[3]}
-def |(that: Parser[A]): Parser[A] =
-  (in, off, k) => '{
-    def succ(res: A, next: Int) = ${ k.succ('res, 'next) }
-
-    ${
-      val k2 = Cont((res: Expr[A], o) => '{ succ($res, $o) }, k.fail)
-      this(in, off, Cont(k2.succ, f1 =>
-        that(in, off, Cont(k2.succ, f2 =>
-          k2.fail('{ if $f1 > $f2 then $f1 else $f2 })
-        ))
-      ))
-    }
-  }
-```
-
-With this change, both branches generate a lightweight method call to succ
-rather than duplicating a potentially large AST. In a long chain of combinators,
-the JVM's JIT compiler will easily inline these tiny delegate methods, meaning
-all branches likely point to a single shared continuation.
-
-However, this is not ideal, muddling the combinator with the optimization. A
-deep embedding---representing the parser as a data structure rather than a
-function---would allow us to inspect the entire grammar before generation, and
-among other things, insert join points.
 
 Ok, perhaps enough of beating around the bush. It's time for some actual parsers.
 
 ## Putting the "parser" in parser combinators
 
-Surely we need a way to parse terminal symbols:
+Combinators we define later focus on grammar building, or structure. But before
+that, we need some _lexical_ parsers. To parse terminal symbols:
 
 ```scala
 def string(s: String): Parser[String] =
@@ -421,15 +396,14 @@ def string(s: String): Parser[String] =
     }
 ```
 
-Because `s` is a compile-time value (Stage 0), we cannot reference it directly
-inside the quote. Instead, we use Expr(s) to _lift_ the literal string into a
-syntax tree so we can safely splice it into the generated code.
+Because `s` is a compile-time value, we cannot reference it directly inside the
+quote. Instead, we use Expr(s) to _lift_ the literal string into a syntax tree
+so we can safely splice it into the generated code.
 
-Notice the careful management of staging boundaries. The conditional expression
+Note the careful management of staging boundaries. The conditional expression
 as a whole is quoted, forming the runtime structure. As mentioned earlier, by
-splicing the compile-time continuations we replace indirect jumps (closures)
-with direct jumps (branching)---unlocking further optimizations like speculative
-execution.
+splicing the continuations we replace indirect jumps (closures) with direct
+jumps (branching)---unlocking further optimizations like speculative execution.
 
 `satisfy` is another basic building block, here defined as an `inline` function
 to hide staging from users---ideally a user should not need to quote anything:
@@ -446,10 +420,13 @@ inline def satisfy(inline f: Char => Boolean): Parser[Char] =
 
 inline def char(inline c: Char): Parser[Char] = 
   satisfy(_ == c)
-
-inline def digit: Parser[Char] = 
-  satisfy(c => c >= '0' && c <= '9')
 ```
+
+Notice a subtle difference with the `string` parser define ealier: since
+`satisfy` has its predicate inlined, `char` also needs its parameter inlined,
+and at the call sites `c` needs to be a literal. We could do this differently,
+e.g. satify taking a staging function instead (Expr[Char] => Expr[Boolean]), and
+then char would be not limited to char literals.
 
 Scannerless means dealing with whitespace:
 
@@ -458,10 +435,25 @@ def ws: Parser[Unit] =
   (in, off, k) =>
     '{
       val n = $in.indexWhere(!_.isWhitespace, $off)
-      val next = if n == -1 then $in.length else n
+      val next = if n < 0 then $in.length else n
       ${ k.succ('{ () }, 'next) }
     }
 ```
+
+To parse comments, text-based protocols or any kind of delimited string, we can
+use `takeUntil`:
+
+```scala
+def takeUntil(c: Char): Parser[String] =
+  (in, off, k) =>
+    '{
+      val n = $in.indexOf(${ Expr(c) }, $off)
+      val next = if n < 0 then $in.length else n
+      ${ k.succ('{ $in.substring($off, next) }, 'next) }
+    }
+```
+
+### "Lifting" functions into parsers
 
 A useful addition might be a staged parser reified from a direct-style parser---a
 sort of escape hatch:
@@ -491,10 +483,7 @@ def regex(r: Regex): Parser[String] =
   }
 ```
 
-This goes to show a library user does not need to worry about continuations. All
-that remains now is to define the main suite of combinators to build
-context-free grammars and the final plumbing to get a parser function from the
-macros. We will use a simple JSON parser as an example and run some benchmarks.
+This goes to show a library user does not need to worry about continuations.
 
 ## Staging the combinators
 
@@ -547,14 +536,26 @@ extension [A: Type](p: Parser[A])
 ```
 
 Lifting a pure value and concatenation (~) forms an Applicative parser, with
-sequence left and right added for convenience, to define e.g. _lexemes_:
+sequence left and right added for convenience. We can easily now define
+tokens:
 
 ```scala
 inline def lexeme[A](inline p: Parser[A]): Parser[A] = p <* ws
 inline def tok(inline c: Char): Parser[Char] = lexeme(char(c))
-inline def parens(inline p: Parser[A]): Parser[A] = 
-  tok('(') *> lexeme(p) <* tok(')')
 ```
+
+Or parse an HTTP request line:
+
+```scala
+// Parsing: "GET /api/users HTTP/1.1\r\n"
+val method = takeUntil(' ') <* char(' ')   // extracts "GET"
+val path   = takeUntil(' ') <* char(' ')   // extracts "/api/users"
+val proto  = takeUntil('\r') <* string("\r\n") // extracts "HTTP/1.1"
+
+val requestLine = (method ~ path ~ proto)
+```
+By introducing a parser that fails (empty) and a choice operator (|), our parser
+exhibits an Alternative (or MonoidK) structure:
 
 ```scala
 inline def empty[A: Type]: Parser[A] =
@@ -573,9 +574,7 @@ extension [A: Type](p: Parser[A])
       )
 ```
 
-By introducing a parser that fails (empty) and a choice operator (|), our parser
-exhibits an Alternative (or MonoidK) structure. With choice we can define `p?`
-which backtracks in case of failure:
+With choice we can define `p?` which backtracks in case of failure:
 
 ```scala
 extension [A: Type](p: Parser[A])
@@ -663,9 +662,9 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
 ```
 
 Remember we previously defined `type Res = TailRec[Unit]`, so continuations and
-other functions perform stackless recursion. The `loop` method ties the knot
-now, avoiding the trap, and `self` stages a loop iteration (with a tailcall
-guard). The parser returned by `fix` jumpstarts the loop.
+the `loop` method perform stackless recursion. `loop` ties the knot now,
+avoiding the trap, and `self` stages a loop iteration (with a tailcall guard).
+The parser returned by `fix` jumpstarts the loop.
 
 We can finally (finally!) derive `defer`, which gives us a lightweight syntax to
 define recursive grammars, e.g.:
@@ -724,10 +723,9 @@ extension [A: Type](p: Parser[A])
         def loop(cOff: Int, acc: B): Res = ${
           p(in, 'cOff,
             Cont(
-              (a, next) =>
-                '{
-                  tailcall(loop($next, ${ Expr.betaReduce('{ f(acc, $a) }) }))
-                },
+              (a, next) => '{
+                tailcall(loop($next, ${ Expr.betaReduce('{ f(acc, $a) }) }))
+              },
               _ => k.succ('acc, 'cOff)
             )
           )
@@ -770,13 +768,10 @@ And from these the following looping parsers:
 
 ```scala
 inline def takeWhile(inline f: Char => Boolean): Parser[String] =
-  satisfy(f).skipMany.string
+  satisfy(f).skipMany.slice
 
 inline def takeWhile1(inline f: Char => Boolean): Parser[String] =
-  satisfy(f).skipMany1.string
-
-inline def takeUntil(c: Char): Parser[String] =
-  satisfy(_ != c).skipMany.string
+  satisfy(f).skipMany1.slice
 
 inline def skipWhile(inline f: Char => Boolean): Parser[Unit] =
   satisfy(f).skipMany
@@ -788,7 +783,7 @@ underlying matched sequence with this combinator:
 
 ```scala
 extension [A: Type](p: Parser[A])
-  def string: Parser[String] =
+  def slice: Parser[String] =
     (in, off, k) =>
       p(in, off,
         Cont(
@@ -798,15 +793,58 @@ extension [A: Type](p: Parser[A])
       )
 ```
 
-## Generating the final parser
+### The elephant in the room 
+
+Because Expr represents an AST, if `k.succ` is a massive block of generated
+code, the compiler literally duplicates that code into your program bytecode. If
+your parser is nesting a few | and ~ combinators, **your generated code grows
+exponentially**---until the JVM eventually refuses to compile it. This
+particular problem can be mitigated with _join points_.
+
+A join point is like a let-binding, basically you'd need to identify when you are duplicating a continuation, and instead insert a local function:
+
+
+```scala {hl_lines=[3]}
+def |(that: Parser[A]): Parser[A] =
+  (in, off, k) => '{
+    def succ(res: A, next: Int) = ${ k.succ('res, 'next) }
+
+    ${
+      val k2 = Cont((res: Expr[A], o) => '{ succ($res, $o) }, k.fail)
+      this(in, off, Cont(k2.succ, f1 =>
+        that(in, off, Cont(k2.succ, f2 =>
+          k2.fail('{ if $f1 > $f2 then $f1 else $f2 })
+        ))
+      ))
+    }
+  }
+```
+
+With this change, both branches generate a lightweight method call to succ
+rather than duplicating a potentially large AST. In a long chain of combinators,
+the JVM's JIT compiler will easily inline these tiny delegate methods, meaning
+all branches likely point to a single shared continuation.
+
+However, this is not ideal, muddling the combinator with the optimization. A
+_deep_ embedding---representing the parser as a data structure rather than a
+function---would allow us to inspect the entire grammar before generation, and
+among other things, insert join points.
+
+## Generating the staged parser
+
+Up until now, our parser has actually been a parser _generator_: it takes the
+code representation of an input, an offset, and a pair of continuations, and
+returns the code that weaves them all together. The final step is to take this
+generator and build the staged lambda (the actual executable parser function)
+that a macro can later splice into our program.
 
 ```scala
 extension [A: Type](p: Parser[A])
-  def compileToExpr(using Quotes): Expr[String => Either[ParseFailure, A]] =
-    val pp = p.asInstanceOf[Gen[Any]]
+  def compile(using Quotes): Expr[String => Either[ParseFailure, A]] =
+    val pp = p.asInstanceOf[Gen[Any]] // pickling errors
 
     '{ (in: String) =>
-      var res: Either[ParseFailure, Any] = uninitialized
+      var res: Either[ParseFailure, Any] = null
       ${
         pp('{ in }, '{ 0 }, Cont(
           (v, off) => '{ res = Right($v); done(()) },
@@ -817,9 +855,21 @@ extension [A: Type](p: Parser[A])
     }
 ```
 
-We are now ready to take our parser combinators for a spin!
+The `compile` method bridges this gap. It takes our final parser generator
+and executes it, using a local variable (res) to capture the final value from
+the top-level continuations. Once the trampoline loop finishes
+(`${...}.result`), we return that variable, re-introducing the parser type we
+defined originally: String => Either[ParseFailure, A]. We've gone full circle,
+but was the detour worth it?
+    
+## Performance
 
-## A JSON Parser
+To demonstrate and benchmark the combinator library, we are going to write a
+_simplified_ JSON parser, assuming non-escaped strings, and with only rudimentary
+number validation. The reason we choose JSON for benchmarking is because it can
+be parsed _predictably_---we want to test staging, not backtracking.
+
+### JSON parser, staged
 
 ```scala
 enum Json {
@@ -831,6 +881,7 @@ enum Json {
   case JNull
 }
 ```
+
 
 ```scala
 val json: Parser[Json] = fix: self =>
@@ -850,26 +901,63 @@ val json: Parser[Json] = fix: self =>
   jNull | jBool | jNum | jStr | jArr | jObj
 ```
 
+And here is the macro that compiles the specialized parser function:
+
 ```scala
-def impl(using Quotes) = json.compileToExpr
+def impl(using Quotes) = json.compile
 inline def jsonParse: String => Either[ParseFailure, Json] = ${ impl }
 ```
 
+We can now run our parser---on a different file:
+
 ```scala
-inline def compiled: String => Option[Json] = ${ impl }
-val parse: String => Option[Json] = compiled
-val result = parse("""{"status": true}""")
+val result = jsonParse("""{"foo": false , "bar": [42]}""")
 println(result)
+// JObject(Map(foo -> JBoolean(false), bar -> JArray(List(JNumber(42.0)))))
 ```
 
-## Benchamarks
+### Benchmark
 
-Combining Scala 3 staging (metaprogramming) with trampolined continuations to
-build a stackless parser combinator library, we get both safety and high
-performance, without compromising the expressiveness of combinators.
+The benchmark compares three implementations:
+- the staged `json` parser above with the combinators from this post
+- a baseline handwritten recursive-descent JSON parser with single-character
+lookahead (an LL(1) parser); at the other end of the spectrum,
+- A direct-style parser combinator using Cats `Eval`, sharing the _exact_ same
+  DSL as the staged version.
 
+The code for each is available [here][staged], [here][misc], and
+[here][unstaged], respectively.
 
-```scala
-val nested = "(" * 5000 + "foo" + ")" * 5000
-assert(sexpParse(nested).isDefined)
-```
+All three implementations use the same underlying primitives (indexOf,
+indexWhere, startsWith) for fast lexical parsing, ensuring that keyword and
+string scanning do not influence results. Similary, they all use a trampoline
+for recursion. This setup allows us to (or at least try to) isolate the
+performance impact of the combinator plumbing itself.
+
+[staged]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-staged-scala
+[misc]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-misc-scala
+[unstaged]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-unstaged-scala
+
+### Results
+
+All benchmarks were performed on an Apple M1 Pro (16GB RAM). Running the parsers
+with a 1MB and 5MB JSON file, I get the following results:
+
+{{< figure src="/images/benchmark_speed.png" class="center" alt="centering"
+width="100%">}}
+
+Because the non-staged `Eval` implementation is over an order of magnitude
+slower than the others, I’ve used a logarithmic scale for the chart above. The
+staged parser finishes in roughly 2/3 the time of the handwritten version.
+
+To understand why we see such a performance gap, we ran the benchmark with the
+JVM GC profiler (-prof gc), which measures the memory allocated per operation
+(gc.alloc.rate.norm):
+
+{{< figure src="/images/benchmark_memory.png" class="center" alt="centering"
+width="100%">}}
+
+These numbers account too for the JSON AST allocations, so strictly speaking is
+not parsing allocation rate---we would need to compare validators instead.
+Nonetheless, it clearly shows how much we have reduced memory churning with the
+CPSed version, all while maintaining the same declarative combinator DSL.
