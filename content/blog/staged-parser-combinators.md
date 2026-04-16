@@ -637,8 +637,12 @@ object Cont:
     }
 ```
 
-With `Cont.lower` acting as our bridge, we can finally introduce a boundary
-between self generation and the runtime recursion:
+`Cont.apply` builds compile-time continuations that delays (or stages)
+_tailcalling_ the runtime continuations in `k`. On the other direction, we have
+`Cont.lower` that splices the compile-time continuations into staged
+lambdas---it is confusing, I know. With these helpers acting as our bridge, we
+can finally introduce a boundary between self generation and the runtime
+recursion:
 
 ```scala
 def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
