@@ -24,7 +24,7 @@ others: avoiding the performance penalty of abstraction.
 By leaning into Scala 3's metaprogramming capabilities, our combinators combine
 _code fragments_. By moving to a _staged_ continuation-passing style (CPS)
 encoding, we make the control flow explicit and continuations are fully
-evaluated at compile time. Results show that a staged parser runs ~30% faster
+evaluated at compile time. Results show that a staged parser runs ~50% faster
 than a handwritten recursive descent parser and over 25x faster than a
 non-staged version. Interestingly, this approach is deeply rooted in partial
 evaluation history, closely mirroring the [First Futamura
@@ -34,7 +34,7 @@ The code used throughout the post is available in [this gist][gist]. The main
 combinator library plus some example parsers is just ~230 sloc, while a
 non-staged combinator library implemented with Cats is 150 sloc.
 
-[gist]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b
+[gist]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809
 
 ## Multi-stage programming (MSP)
 
@@ -128,7 +128,6 @@ s-expression grammar for strings like `(a0(b1(c2(d3))e5)f6)`:
 ```ebnf
 letter = "a" | ... | "z" | "A" | ... | "Z"
 digit  = "0" | ... | "9"
-
 sexp   = sym | seq
 sym    = letter (letter | digit)*
 seq    = "(" sexp* ")"
@@ -143,16 +142,17 @@ enum Sexp:
 
 val letter = satisfy(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
 val digit  = satisfy(c => c >= '0' && c <= '9')
-
-lazy val sexp: Parser[Sexp] = sym | seq
-lazy val sym: Parser[Sexp] = (letter ~ (letter | digit).many).map(Sym(_))
-lazy val seq: Parser[Sexp] = defer(sexp).many.between('(', ')').map(Seq(_))
+val sexp: Parser[Sexp] = fix { self =>
+  val sym = (letter ~ (letter | digit).many).map(Sym(_))
+  val seq = self.many.between('(', ')').map(Seq(_))
+  sym | seq
+}
 ```
 
 Notice how closely the Scala code mirrors the BNF grammar. Together with
 primitives like `satisfy`, you can build parsers for any context-free language
 using mainly the combinators for sequential (~) and alternative (|) composition,
-and a defer (or fix) combinator for recursion. Adding a few more common
+and a fixed point combinator for recursion. Adding a few more common
 combinators, we can define a small but powerful compositional DSL for parsing.
 The combinator many is the counterpart for EBNF *. Later we develop a full-dress
 library of combinators that covers many common needs.
@@ -163,9 +163,8 @@ eliminating left-recursion.
 
 Parsers of this kind usually have applicative structure (via the ~ and map
 above), and a monadic interface is also possible (Parsec-style) for
-context-sensitive parsing, but that extra power precludes static analysis---more
+context-sensitive parsing, but that extra power rules out static analysis---more
 on this later.
-
 
 ## Staging a parser type from the ground up
 
@@ -232,17 +231,7 @@ trait Parser[A] extends ((String, Int) => Result[(A, Int)]):
 
 Ok, we are getting closed to a _minimum viable_ parser. One final requirement is
 the ability to represent recursive grammars, like the s-expression we defined
-earlier:
-
-```scala
-lazy val sexp: Parser[Sexp] = sym | seq
-lazy val seq: Parser[Sexp] = defer(sexp).many.between('(', ')').map(Seq(_))
-```
-
-Here we have a chicken-and-egg problem. The call to defer breaks that (we'll
-talk more about `defer` later).
-
-Parallel to this, you can't guarantee stack safety for complex, mutually
+earlier. In general, you can't guarantee stack safety for complex, mutually
 recursive grammars---JVM does not support TCO or TCMC. We'll use a trampoline to
 make sure both nesting and repetition work for arbitrarily deep (long) chains of
 characters:
@@ -357,7 +346,7 @@ Multi-stage programming allows us to keep the abstraction and beauty of parser
 combinators, while pre-computing their structure at an earlier stage, generating
 code looking like a handwritten descent parser.
 
-### Context is King
+### Quotes for context
 
 One final (really) refinement. The Parser is a staging function and thus
 most of our code will require a `(using Quotes)` to quote and splice
@@ -373,12 +362,16 @@ type Parser[A] = Quotes ?=> Gen[A]
 
 This has a cascading effect, since any grammar you define with the combinator
 library does not need to concern itself with a context parameter required for
-implementation reasons.
+implementation reasons. The downside of using a context function is that it
+precludes the use of lazy evaluation for defining mutually recursive grammars,
+e.g. defining a `defer` combinator.
+
+Ok, perhaps enough of beating around the bush. It's time for some actual
+parsers.
 
 [context-functions]: https://docs.scala-lang.org/scala3/reference/contextual/context-functions.html
 
 
-Ok, perhaps enough of beating around the bush. It's time for some actual parsers.
 
 ## Putting the "parser" in parser combinators
 
@@ -629,8 +622,8 @@ object Cont:
     using Quotes
   ): Cont[A] =
     Cont(
-      (v, n) => '{ $k._1($v, $n) },
-      fOff => '{ $k._2($fOff) }
+      (v, n) => '{ tailcall($k._1($v, $n)) },
+      fOff => '{ tailcall($k._2($fOff)) }
     )
 
   def lower[A: Type](k: Cont[A])(
@@ -661,44 +654,8 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
     }
 ```
 
-Remember we previously defined `type Res = TailRec[Unit]`, so continuations and
-the `loop` method perform stackless recursion. `loop` ties the knot now,
-avoiding the trap, and `self` stages a loop iteration (with a tailcall guard).
+`loop` ties the knot now, avoiding the trap, and `self` stages a loop iteration.
 The parser returned by `fix` jumpstarts the loop.
-
-We can finally (finally!) derive `defer`, which gives us a lightweight syntax to
-define recursive grammars, e.g.:
-
-```scala
-lazy val arr: Parser[List[Any]] = defer(char('[') *> arr <* char(']'))
-```
-
-```scala
-def defer[A: Type](p: => Parser[A]): Parser[A] =
-  var ref: Parser[A] = null
-
-  (in, off, k) =>
-    if ref != null then ref(in, off, k)
-    else fix[A] { self =>
-      (i, o, nk) =>
-        ref = self
-        try
-          p(i, o, nk)
-        finally
-          ref = null
-    }.apply(in, off, k)
-```
-
-The `ref` variable, which is captured by the returned parser, ensures that we
-run fix only once---otherwise we would get a new loop for every recursive
-call---and `defer` is only called _once_ by the lazy semantics. We reset `ref`
-so that subsequent calls to the deferred parser (e.g. arr ~ arr) get their own
-loops.
-
-I think it's worth to stress again that all of these runs at compile-time, i.e.
-the `ref` and the try(-finally) block do not exist in the final parser---they're
-just scaffolding. Also, due the trampoline, the `loop` methods are indeed while
-loops.
 
 ### Repetition
 
@@ -801,7 +758,8 @@ your parser is nesting a few | and ~ combinators, **your generated code grows
 exponentially**---until the JVM eventually refuses to compile it. This
 particular problem can be mitigated with _join points_.
 
-A join point is like a let-binding, basically you'd need to identify when you are duplicating a continuation, and instead insert a local function:
+A join point is like a let-binding, basically you'd need to identify when you
+are duplicating a continuation, and instead insert a local function:
 
 
 ```scala {hl_lines=[3]}
@@ -810,7 +768,10 @@ def |(that: Parser[A]): Parser[A] =
     def succ(res: A, next: Int) = ${ k.succ('res, 'next) }
 
     ${
-      val k2 = Cont((res: Expr[A], o) => '{ succ($res, $o) }, k.fail)
+      val k2 = Cont(
+        (res: Expr[A], o) => '{ tailcall(succ($res, $o)) },
+        k.fail
+      )
       this(in, off, Cont(k2.succ, f1 =>
         that(in, off, Cont(k2.succ, f2 =>
           k2.fail('{ if $f1 > $f2 then $f1 else $f2 })
@@ -855,12 +816,41 @@ extension [A: Type](p: Parser[A])
     }
 ```
 
-The `compile` method bridges this gap. It takes our final parser generator
-and executes it, using a local variable (res) to capture the final value from
-the top-level continuations. Once the trampoline loop finishes
-(`${...}.result`), we return that variable, re-introducing the parser type we
-defined originally: String => Either[ParseFailure, A]. We've gone full circle,
-but was the detour worth it?
+The `compile` method bridges this gap. It takes our final parser generator and
+executes it, using a local variable (res) to capture the final value from the
+top-level continuations. Once the trampoline loop finishes (`${...}.result`), we
+return that variable.
+
+Here is a parser that validates balanced brackets:
+
+```scala
+val p: Parser[Unit] = fix { self => 
+  char('[') *> (self | pure(())) <* char(']') 
+}
+def bkt(using Quotes) = p.compile
+```
+
+We finally define a macro that builds our specialized parser, by splicing the
+resulting `Expr` from `compile`, re-introducing the parser we defined
+originally: String => Either[ParseFailure, A]. We've gone full circle, but was
+the detour worth it?
+
+```scala
+inline def balanced: String => Either[ParseFailure, Unit] = ${ bkt }
+```
+
+We can now run our parser---on a different file:
+
+```scala
+println(balanced("[[[[[[]]]]]]"))
+// Right(())
+
+println(balanced("[" * 5001 + "]" * 5000))
+// Left(ParseFailure(10001))
+```
+
+This is a very contrived example, but because of stackless recursion, we do not
+have to worry about stack overflows. 
     
 ## Performance
 
@@ -868,8 +858,6 @@ To demonstrate and benchmark the combinator library, we are going to write a
 _simplified_ JSON parser, assuming non-escaped strings, and with only rudimentary
 number validation. The reason we choose JSON for benchmarking is because it can
 be parsed _predictably_---we want to test staging, not backtracking.
-
-### JSON parser, staged
 
 ```scala
 enum Json {
@@ -901,21 +889,6 @@ val json: Parser[Json] = fix: self =>
   jNull | jBool | jNum | jStr | jArr | jObj
 ```
 
-And here is the macro that compiles the specialized parser function:
-
-```scala
-def impl(using Quotes) = json.compile
-inline def jsonParse: String => Either[ParseFailure, Json] = ${ impl }
-```
-
-We can now run our parser---on a different file:
-
-```scala
-val result = jsonParse("""{"foo": false , "bar": [42]}""")
-println(result)
-// JObject(Map(foo -> JBoolean(false), bar -> JArray(List(JNumber(42.0)))))
-```
-
 ### Benchmark
 
 The benchmark compares three implementations:
@@ -929,14 +902,14 @@ The code for each is available [here][staged], [here][misc], and
 [here][unstaged], respectively.
 
 All three implementations use the same underlying primitives (indexOf,
-indexWhere, startsWith) for fast lexical parsing, ensuring that keyword and
-string scanning do not influence results. Similary, they all use a trampoline
-for recursion. This setup allows us to (or at least try to) isolate the
-performance impact of the combinator plumbing itself.
+indexWhere, startsWith) for lexical parsing, ensuring that keyword and string
+scanning do not influence results. Similary, they all use a trampoline for
+recursion. This setup allows us to (or at least try to) isolate the performance
+impact of the combinator plumbing itself.
 
-[staged]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-staged-scala
-[misc]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-misc-scala
-[unstaged]: https://gist.github.com/moleike/0b16cb97d90373b6faafdb62908cd81b#file-unstaged-scala
+[staged]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809#file-staged-scala
+[misc]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809#file-misc-scala
+[unstaged]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809#file-unstaged-scala
 
 ### Results
 
@@ -946,9 +919,9 @@ with a 1MB and 5MB JSON file, I get the following results:
 {{< figure src="/images/benchmark_speed.png" class="center" alt="centering"
 width="100%">}}
 
-Because the non-staged `Eval` implementation is over an order of magnitude
-slower than the others, I’ve used a logarithmic scale for the chart above. The
-staged parser finishes in roughly 2/3 the time of the handwritten version.
+Because the non-staged `Eval` implementation is well over an order of magnitude
+slower than the others, we use logarithmic scale. The staged parser finishes in
+roughly 2/3 the time of the handwritten version.
 
 To understand why we see such a performance gap, we ran the benchmark with the
 JVM GC profiler (-prof gc), which measures the memory allocated per operation
@@ -957,7 +930,27 @@ JVM GC profiler (-prof gc), which measures the memory allocated per operation
 {{< figure src="/images/benchmark_memory.png" class="center" alt="centering"
 width="100%">}}
 
-These numbers account too for the JSON AST allocations, so strictly speaking is
-not parsing allocation rate---we would need to compare validators instead.
-Nonetheless, it clearly shows how much we have reduced memory churning with the
-CPSed version, all while maintaining the same declarative combinator DSL.
+These numbers account too for the JSON AST allocations, so it's not strictly
+speaking parsing allocation rate---we would need to run validators, not parsers,
+instead. Nonetheless, it clearly shows how much we have reduced memory churning
+with the CPSed version, with even less allocations than a tedious handwritten
+parser, all while maintaining the same declarative combinator DSL.
+
+## Final remarks
+
+In the Scala ecosystem, macros are typically relegated to eliminating
+boilerplate or deriving type classes. However, with support for quotation-based
+staging, we get something more like macros on _steroids_.
+
+I got really intrigued about multi-stage programming and using staging for
+performance after I read some years ago a couple of papers: [*A Typed, Algebraic
+Approach to Parsing*](https://dl.acm.org/doi/10.1145/3314221.3314625)
+(Krishnaswami & Yallop, 2019) and [*Staged Selective Parser
+Combinators*](https://dl.acm.org/doi/10.1145/3409002) (Willis, Wu, & Pickering,
+2020), but those use MetaOCaml and Typed Template Haskell. So what a treat that
+Scala 3 comes with support for MSP out of the box, and there is a paper dating
+back to 2014 on Scala, [*Staged Parser Combinators for Efficient Data
+Processing*](https://dl.acm.org/doi/10.1145/2714064.2660241) (Jonnalagedda,
+Coppey, Stucki, Rompf, & Odersky) which specifically explored the ideas I
+discussed, but based on Lightweight Modular Staging (LMS), which was a precursor
+of Scala 3 MSP.
