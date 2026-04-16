@@ -617,6 +617,8 @@ holding the rest of the parser's logic (like parsing the closing `]`).
 Thankfully staging allows us to move code from one stage to the next:
 
 ```scala
+//  `Res` is an alias for `TailRec[Unit]`
+
 object Cont:
   def apply[A: Type](k: Expr[((Any, Int) => Res, Int => Res)])(
     using Quotes
@@ -637,16 +639,21 @@ object Cont:
     }
 ```
 
-`Cont.apply` builds compile-time continuations that delays (or stages)
-_tailcalling_ the runtime continuations in `k`. On the other direction, we have
-`Cont.lower` that splices the compile-time continuations into staged
-lambdas---it is confusing, I know. With these helpers acting as our bridge, we
-can finally introduce a boundary between self generation and the runtime
-recursion:
+`Cont.apply` returns compile-time continuations from _opaque_ runtime functions.
+The only thing it can do is to stage (delay) calling them. But because we do
+know that in a recursive parser we might generate a deep chain of nested calls
+with CPS, we _tailcall_ the continuation, to suspend its evaluation and avoid
+growing the stack---it is confusing having two notions of _delay_ here, I know.
+
+On the other direction, we have `Cont.lower` that splices the compile-time
+continuations into staged lambdas.
+
+With these helpers acting as our bridge, we can finally introduce a boundary
+between self generation and the runtime recursion:
 
 ```scala
 def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
-  (in, off, k) =>
+  (in, off, start) =>
     '{
       def loop(o: Int, k: ((Any, Int) => Res, Int => Res)): Res = ${
         val self: Parser[A] = (_, nOff, nK) => 
@@ -654,12 +661,12 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
         
         f(self)(in, 'o, Cont('k))
       }
-      tailcall(loop($off, ${ Cont.lower(k) }))
+      tailcall(loop($off, ${ Cont.lower(start) }))
     }
 ```
 
-`loop` ties the knot now, avoiding the trap, and `self` just stages a tailcall
-to loop. The parser returned by `fix` jumpstarts the loop.
+The trampolined function `loop` ties the knot now, avoiding the trap, and `self`
+just stages tailcalling loop. The parser returned by `fix` jumpstarts the loop.
 
 ### Repetition
 
