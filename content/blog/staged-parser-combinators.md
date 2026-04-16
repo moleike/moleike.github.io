@@ -658,8 +658,8 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
     }
 ```
 
-`loop` ties the knot now, avoiding the trap, and `self` stages a loop iteration.
-The parser returned by `fix` jumpstarts the loop.
+`loop` ties the knot now, avoiding the trap, and `self` just stages a tailcall
+to loop. The parser returned by `fix` jumpstarts the loop.
 
 ### Repetition
 
