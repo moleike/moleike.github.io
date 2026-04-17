@@ -309,10 +309,9 @@ the idea of the builder pattern.
 
 On the first stage, the builder, we use Nix as the base image to:
 - build our application with `nix build`
-- copy the _runtime closure_---the runtime dependencies of our app (bash, jdk,
-etc.)---of the output path at result/ to a /tmp directory. This is done via this
-command: `nix-store -qR result/` which print out the closure of a store path
-- copy the contents of `result/` itself, i.e. our app to a /tmp directory too
+- copy the build output---app and all its third-party dependencies
+- copy system dependencies with `nix-store -qR result/`, which lists all the
+runtime dependencies (the "closure") of your build
 
 On the second stage, we use the [scratch] image, basically an image with no
 layers. In this stage with copy from the builder our app into a layer and its
