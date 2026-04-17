@@ -623,14 +623,6 @@ Thankfully staging allows us to move code from one stage to the next:
 //  `Res` is an alias for `TailRec[Unit]`
 
 object Cont:
-  def apply[A: Type](k: Expr[((Any, Int) => Res, Int => Res)])(
-    using Quotes
-  ): Cont[A] =
-    Cont(
-      (v, n) => '{ tailcall($k._1($v, $n)) },
-      fOff => '{ tailcall($k._2($fOff)) }
-    )
-
   def lower[A: Type](k: Cont[A])(
     using Quotes
   ): Expr[((Any, Int) => Res, Int => Res)] =
@@ -640,19 +632,20 @@ object Cont:
         (fOff: Int) => ${ k.fail('fOff) }
       )
     }
+
+  def apply[A: Type](k: Expr[((Any, Int) => Res, Int => Res)])(
+    using Quotes
+  ): Cont[A] =
+    Cont(
+      (v, n) => '{ tailcall($k._1($v, $n)) },
+      fOff => '{ tailcall($k._2($fOff)) }
+    )
 ```
 
-`Cont.apply` returns compile-time continuations from _opaque_ runtime functions.
-The only thing it can do is to stage (delay) calling them. But because we do
-know that in a recursive parser we might generate a deep chain of nested calls
-with CPS, we _tailcall_ the continuation, to suspend its evaluation and avoid
-growing the stack---it is confusing having two notions of _delay_ here, I know.
-
-On the other direction, we have `Cont.lower` that splices the compile-time
-continuations into staged lambdas.
-
-With these helpers acting as our bridge, we can finally introduce a boundary
-between self generation and the runtime recursion:
+`Cont.lower` splices the compile-time continuations into a _staged_ pair of
+lambdas. Conversely, `Cont.apply` returns compile-time continuations from staged
+lambdas. With these helpers acting as our bridge, we can finally introduce a
+boundary between self generation and the runtime recursion:
 
 ```scala
 def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
