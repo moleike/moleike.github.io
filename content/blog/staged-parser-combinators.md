@@ -157,9 +157,9 @@ combinators, we can define a small but powerful compositional DSL for parsing.
 The combinator many is the counterpart for EBNF *. Later we develop a full-dress
 library of combinators that covers many common needs.
 
-Note that in a practical combinator library you'd want to restrict the grammar
-you accept to guarantee performance—such as enforcing left factoring or
-eliminating left-recursion.
+In a practical combinator library you'd want to restrict the grammar you accept
+to guarantee performance—such as enforcing left factoring or eliminating
+left-recursion.
 
 Parsers of this kind usually have applicative structure (via the ~ and map
 above), and a monadic interface is also possible (Parsec-style) for
@@ -203,10 +203,11 @@ trait Parser[A] extends (String => Option[(A, String)]):
     this(input).map(_._1)
 ```
 
-But we still can do better. By returning `Option[(A, String)]` (a value
-together with the leftover string), we are using `String.substring(n)`
-internally, which means for every value parsed you are allocating a string
-and increasing GC pressure unnecessarily.
+But we still can do better. By returning `Option[(A, String)]` (a value together
+with the leftover string), we are using `String.substring(n)` internally, which
+means for every value parsed you are allocating a string and increasing GC
+pressure unnecessarily. We can instead return offsets to mark where in the
+string we are at and use string indexing operations:
 
 ```scala
 trait Parser[A] extends ((String, Int) => Option[(A, Int)]):
@@ -214,8 +215,9 @@ trait Parser[A] extends ((String, Int) => Option[(A, Int)]):
     this(input, 0).map(_._1)
 ```
 
-Users need precise feedback to fix their syntax errors, so an Option is kind of
-a non-starter. We will not develop further error reporting, but since now we
+Returning an `Option` means that a parsing failure is the absence of a value.
+But users need precise feedback to fix their syntax errors, so an Option is kind
+of a non-starter. We will not develop further error reporting, but since now we
 have the current offset as part of the parser input, we can provide meaningful
 error messages (line+column) with some helpers.
 
@@ -346,7 +348,7 @@ Multi-stage programming allows us to keep the abstraction and beauty of parser
 combinators, while pre-computing their structure at an earlier stage, generating
 code looking like a handwritten descent parser.
 
-### Quotes for context
+### Integrating `Quotes`
 
 One final (really) refinement. The Parser is a staging function and thus
 most of our code will require a `(using Quotes)` to quote and splice
@@ -362,9 +364,9 @@ type Parser[A] = Quotes ?=> Gen[A]
 
 This has a cascading effect, since any grammar you define with the combinator
 library does not need to concern itself with a context parameter required for
-implementation reasons. The downside of using a context function is that it
-precludes the use of lazy evaluation for defining mutually recursive grammars,
-e.g. defining a `defer` combinator.
+implementation reasons. The (big) downside of using a context function is that
+it precludes the use of lazy evaluation for defining mutually recursive
+grammars, e.g. defining a `defer` combinator.
 
 Ok, perhaps enough of beating around the bush. It's time for some actual
 parsers.
@@ -598,13 +600,14 @@ val arr: Parser[List[Any]] = fix { self =>
 }
 ```
 
-When the compiler evaluates arr, it calls fix(f), which returns the lazy self
-parser. To generate the final syntax tree, the compiler must expand self, which
-immediately triggers the evaluation of f. The compiler generates
-the AST for char('['), but then it encounters self in the sequence. Because the
-macro eagerly attempts to resolve the entire tree at compile-time, it expands
-self a second time. This blindly calls f again, generating another char('['),
-which _hits self again_...you get the idea.
+This is a toy example---it fails once it stops seeing open brackets---but it
+exhibits recursion. When the compiler evaluates arr, it calls fix(f), which
+returns the lazy self parser. To generate the final syntax tree, the compiler
+must expand self, which immediately triggers the evaluation of f. The compiler
+generates the AST for char('['), but then it encounters self in the sequence.
+Because the macro eagerly attempts to resolve the entire tree at compile-time,
+it expands self a second time. This blindly calls f again, generating another
+char('['), which _hits self again_...you get the idea.
 
 Foolishly, we are asking the compiler to unroll a recursive grammar for a
 language that is potentially infinite into a flat, finite AST. We must stop the
@@ -668,6 +671,38 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
 The trampolined function `loop` ties the knot now, avoiding the trap, and `self`
 just stages tailcalling loop. The parser returned by `fix` jumpstarts the loop.
 
+Perhaps to convince ourselves that these all make sense, we could look at the
+(symbolic) macro expansion of the `loop` function. Assuming again a bracket
+parser (`char('[') *> self <* char(']')`):
+
+```scala
+def loop(o: Int, k: ((Any, Int) => Res, Int => Res)): Res =
+  if (in.charAt(o) == '[') {
+    tailcall(loop(
+      o + 1,
+      (
+        (v: Any, nOff: Int) => {
+          if (in.charAt(nOff) == ']') {
+            tailcall(k._1(v, nOff + 1))
+          } else {
+            tailcall(k._2(nOff))
+          }
+        },
+        (fOff: Int) => {
+          tailcall(k._2(fOff))
+        }
+      )
+    ))
+  } else {
+    tailcall(k._2(o))
+  }
+```
+
+
+For every call to `loop` it correctly tracks _unmatched_ open brackets via the
+continuations. The tailcalls ensure that no matter how deep the nesting we are
+stack-safe. Whew!
+
 ### Repetition
 
 Kleene star can be succintly defined via mutual recursion. However, fold
@@ -703,7 +738,7 @@ extension [A: Type](p: Parser[A])
 ```
 
 Since we know what to do if the parser succeeds (try again!), we can inline the
-continuation in `p`, makeing `fold` a while loop.
+continuation in `p`, making `fold` a while loop.
 
 Repetition is perhaps the only operation where the trampoline is strictly needed
 for safety---note that in a CPS'd parser you do not return a value, so you can't
