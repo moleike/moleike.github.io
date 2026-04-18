@@ -919,15 +919,17 @@ enum Json {
 val json: Parser[Json] = fix: self =>
   import Json.*
 
+  val str = takeUntil('"').between('"', '"')
+
   val jNull = string("null").as(JNull)
   val jBool =
     (string("true").as(true) | string("false").as(false)).map(JBoolean(_))
-  val jStr = takeUntil('"').between('"', '"').map(JString(_))
+  val jStr = str.map(JString(_))
   val jNum = takeWhile1(c => c == '-' || c == '.' || c.isDigit).map(
     _.toDouble
   ).map(JNumber(_))
-  val jArr = self.sepBy(tok(',')).between('[', ']').map(JArray(_))
-  val jObj = ((str <* tok(':')) ~ self).sepBy(tok(',')).between('{', '}')
+  val jArr = lexeme(self).sepBy(tok(',')).between('[', ']').map(JArray(_))
+  val jObj = ((str <* tok(':')) ~ lexeme(self)).sepBy(tok(',')).between('{', '}')
     .map(fs => Json.JObject(fs.toMap))
 
   jNull | jBool | jNum | jStr | jArr | jObj
