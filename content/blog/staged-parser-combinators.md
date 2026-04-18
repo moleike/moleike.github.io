@@ -994,9 +994,10 @@ Approach to Parsing*](https://dl.acm.org/doi/10.1145/3314221.3314625)
 (Krishnaswami & Yallop, 2019) and [*Staged Selective Parser
 Combinators*](https://dl.acm.org/doi/10.1145/3409002) (Willis, Wu, & Pickering,
 2020), but those use MetaOCaml and Typed Template Haskell. So what a treat that
-Scala 3 comes with support for MSP out of the box, and there is a paper dating
-back to 2014 on Scala, [*Staged Parser Combinators for Efficient Data
-Processing*](https://dl.acm.org/doi/10.1145/2714064.2660241) (Jonnalagedda,
-Coppey, Stucki, Rompf, & Odersky) which specifically explored the ideas I
-discussed, but based on Lightweight Modular Staging (LMS), which was a precursor
-of Scala 3 MSP.
+Scala 3 comes with support for MSP out of the box! 
+
+There is a paper dating back to 2014 on Scala, [*Staged Parser Combinators for
+Efficient Data Processing*](https://dl.acm.org/doi/10.1145/2714064.2660241)
+(Jonnalagedda, Coppey, Stucki, Rompf, & Odersky) which specifically explored the
+ideas I discussed, but based on Lightweight Modular Staging (LMS), which was a
+precursor of Scala 3 MSP.
