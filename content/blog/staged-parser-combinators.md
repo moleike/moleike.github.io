@@ -643,9 +643,10 @@ object Cont:
 ```
 
 `Cont.lower` splices the compile-time continuations into a _staged_ pair of
-lambdas. Conversely, `Cont.apply` returns compile-time continuations from staged
-lambdas. With these helpers acting as our bridge, we can finally introduce a
-boundary between self generation and the runtime recursion:
+lambdas. Conversely, `Cont.apply` returns compile-time continuations from
+splicing tailcalls to the provided staged lambdas. With these helpers acting as
+our bridge, we can finally introduce a boundary between self generation and the
+runtime recursion:
 
 ```scala
 def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
@@ -663,6 +664,10 @@ def fix[A: Type](f: Parser[A] => Parser[A]): Parser[A] =
 
 The trampolined function `loop` ties the knot now, avoiding the trap, and `self`
 just stages tailcalling loop. The parser returned by `fix` jumpstarts the loop.
+
+You might wonder if introducing generic identifiers like loop, o, and k directly
+into the generated code risks accidentally shadowing variables in the user's
+grammar. Fortunately, Scala 3 macros are _hygienic_.
 
 Perhaps to convince ourselves that these all make sense, we could look at the
 (symbolic) macro expansion of the `loop` function. Assuming again a bracket
