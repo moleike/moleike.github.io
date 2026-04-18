@@ -2,6 +2,7 @@
 title: "Staged Parser Combinators in Scala: Have Your Cake and Eat It (Too)"
 date: 2026-03-02
 draft: false
+discussion_id: 26
 tags:
   - programming
   - performance
@@ -9,7 +10,6 @@ tags:
   - parsing
   - macros
   - multi-stage programming
-  - partial evaluation
 ---
 
 Parser combinators have a reputation of poor performance---worst-case

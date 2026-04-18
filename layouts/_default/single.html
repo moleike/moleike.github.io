@@ -13,6 +13,15 @@
   {{ .Content }}
 </content>
 <p>
+  <hr>
+  {{ if .Params.discussion_id }}
+    <p>
+      Have thoughts on this?
+      <a href="https://github.com/moleike/moleike.github.io/discussions/{{ .Params.discussion_id }}">
+        Discuss this post on GitHub.
+      </a>
+    </p>
+  {{ end }}
   {{ range (.GetTerms "tags") }}
   <a href="{{ .Permalink }}">#{{ .LinkTitle }}</a>
   {{ end }}
