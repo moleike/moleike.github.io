@@ -12,8 +12,12 @@
 <content>
   {{ .Content }}
 </content>
-<p>
-  <hr>
+
+<div class="post-meta-footer">
+  {{ if or .Params.discussion_id .Params.tags }}
+    <hr>
+  {{ end }}
+
   {{ if .Params.discussion_id }}
     <p>
       Have thoughts on this?
@@ -22,8 +26,9 @@
       </a>
     </p>
   {{ end }}
+
   {{ range (.GetTerms "tags") }}
   <a href="{{ .Permalink }}">#{{ .LinkTitle }}</a>
   {{ end }}
-</p>
+</div>
 {{ end }}
