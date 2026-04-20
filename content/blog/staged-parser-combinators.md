@@ -1,6 +1,6 @@
 ---
 title: "Staged Parser Combinators in Scala: Have Your Cake and Eat It (Too)"
-date: 2026-03-02
+date: 2026-04-20
 draft: false
 discussion_id: 26
 tags:
