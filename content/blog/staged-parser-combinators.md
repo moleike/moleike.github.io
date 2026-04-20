@@ -980,7 +980,8 @@ These numbers account too for the JSON AST allocations, so it's not strictly
 speaking parsing allocation rate---we would need to run validators, not parsers,
 instead. Nonetheless, it clearly shows how much we have reduced memory churning
 with the CPSed version, with even less allocations than a tedious handwritten
-parser, all while maintaining the same declarative combinator DSL.
+parser, all while maintaining the same declarative DSL of a non-staged
+combinator library.
 
 ## Final remarks
 
