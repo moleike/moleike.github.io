@@ -337,9 +337,23 @@ def |(that: Parser[A])(using Quotes): Parser[A] =
 ```
 
 When a parser succeeds, it doesn't wrap the result in an Either; it simply
-invokes k.succ, seamlessly embedding the AST of the next parser directly into the
-success path. And because every next parser does the exact same thing, you are
-essentially _fusing_ the entire remaining grammar together.
+invokes k.succ, seamlessly embedding the AST of the next parser directly into
+the success path. To see how these continuations actually emit code, we have to
+look at the leaves of our grammar. A base parser, like anyChar, physically
+_splices_ the continuations into the generated logic:
+
+```scala
+def anyChar: Parser[Char] =
+  (in, off, k) => '{
+    if ($off < $in.length)
+      ${ k.succ('{$in.charAt($off)}, '{ $off + 1 }) }
+    else
+      ${ k.fail(off) }
+  }
+```
+
+And because every next parser does the exact same thing, you are essentially
+_fusing_ the entire remaining grammar together.
 
 Contrast this with (naive) unstaged parsers, where chains of combinators build
 deeply nested closure objects on the heap, together with all the other
