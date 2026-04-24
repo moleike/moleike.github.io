@@ -36,6 +36,49 @@ non-staged combinator library implemented with Cats is 150 sloc.
 
 [gist]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809
 
+## Parser combinators
+
+Parser combinators are used to derive recursive descent parsers that are very
+similar to the grammar of a language, and translating a grammar into a program
+tends to be strikingly simple and mechanical. Consider, for example, an
+s-expression grammar for strings like `(a0(b1(c2(d3))e5)f6)`:
+
+```ebnf
+letter = "a" | ... | "z" | "A" | ... | "Z"
+digit  = "0" | ... | "9"
+sexp   = sym | seq
+sym    = letter (letter | digit)*
+seq    = "(" sexp* ")"
+```
+
+This EBNF grammar would loosely translate to the following Scala code:
+
+```scala
+enum Sexp:
+  case Sym(name: String)
+  case Seq(items: List[Sexp])
+
+val letter = satisfy(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+val digit  = satisfy(c => c >= '0' && c <= '9')
+val sexp: Parser[Sexp] = fix { self =>
+  val sym = (letter ~ (letter | digit).many).map(Sym(_))
+  val seq = self.many.between('(', ')').map(Seq(_))
+  sym | seq
+}
+```
+
+Notice how closely the Scala code mirrors the BNF grammar. Together with
+primitives like `satisfy`, you can build parsers for any context-free language
+using mainly the combinators for sequential (~) and alternative (|) composition,
+and a fixed point combinator for recursion. Adding a few more common
+combinators, we can define a small but powerful compositional DSL for parsing.
+The combinator many is the counterpart for EBNF *. Later we develop a full-dress
+library of combinators that covers many common needs.
+
+In a practical combinator library you'd want to restrict the grammar you accept
+to guarantee performance---such as enforcing left factoring or eliminating
+left-recursion.
+
 ## Multi-stage programming (MSP)
 
 One of the novel features of Scala 3 was the redesign of metaprogramming,
@@ -117,53 +160,6 @@ step.)
 
 [macros]: https://docs.scala-lang.org/scala3/reference/metaprogramming/macros.html
 
-## Parser combinators
-
-Parser combinators are used to derive recursive descent parsers that are very
-similar to the grammar of a language, and translating a grammar into a program
-tends to be strikingly simple and mechanical. Consider, for example, an
-s-expression grammar for strings like `(a0(b1(c2(d3))e5)f6)`:
-
-```ebnf
-letter = "a" | ... | "z" | "A" | ... | "Z"
-digit  = "0" | ... | "9"
-sexp   = sym | seq
-sym    = letter (letter | digit)*
-seq    = "(" sexp* ")"
-```
-
-This EBNF grammar would loosely translate to the following Scala code:
-
-```scala
-enum Sexp:
-  case Sym(name: String)
-  case Seq(items: List[Sexp])
-
-val letter = satisfy(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
-val digit  = satisfy(c => c >= '0' && c <= '9')
-val sexp: Parser[Sexp] = fix { self =>
-  val sym = (letter ~ (letter | digit).many).map(Sym(_))
-  val seq = self.many.between('(', ')').map(Seq(_))
-  sym | seq
-}
-```
-
-Notice how closely the Scala code mirrors the BNF grammar. Together with
-primitives like `satisfy`, you can build parsers for any context-free language
-using mainly the combinators for sequential (~) and alternative (|) composition,
-and a fixed point combinator for recursion. Adding a few more common
-combinators, we can define a small but powerful compositional DSL for parsing.
-The combinator many is the counterpart for EBNF *. Later we develop a full-dress
-library of combinators that covers many common needs.
-
-In a practical combinator library you'd want to restrict the grammar you accept
-to guarantee performance—such as enforcing left factoring or eliminating
-left-recursion.
-
-Parsers of this kind usually have applicative structure (via the ~ and map
-above), and a monadic interface is also possible (Parsec-style) for
-context-sensitive parsing, but that extra power rules out static analysis---more
-on this later.
 
 ## Staging a parser type from the ground up
 
