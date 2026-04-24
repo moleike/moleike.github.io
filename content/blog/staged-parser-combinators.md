@@ -104,13 +104,12 @@ inline def id[A](inline value: A): A = ${ id('{ value }) }
 Instead of writing one massive, monolithic macro (which is how code generation
 usually feels), you build your final program by composing functions.
 
-To see how this all comes together, we are going to stage a parser combinator
-library. The key insight is that while a library is generic, a specific grammar
-is typically known the moment a user compiles their program. By evaluating the
-static grammar at compile-time and quoting only the logic that depends on
-runtime input, we can transform a high-level recursive DSL into a specialized
-parser that eliminates the traditional overhead of abstraction in combinator
-libraries.
+What does this have to do with parser combinators? The key insight is that while
+a combinator library is generic, a specific grammar is typically known the
+moment a user compiles their program. By evaluating the static grammar at
+compile-time and quoting only the logic that depends on runtime input, we can
+transform a high-level recursive DSL into a specialized parser that eliminates
+the traditional overhead of abstraction in combinator libraries.
 
 (Note: this was a rather rushed intro to multi-stage programming in Scala,
 checking out the official language reference [here][macros] is a great next
