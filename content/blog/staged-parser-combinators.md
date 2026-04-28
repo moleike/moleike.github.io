@@ -34,7 +34,7 @@ The code used throughout the post is available in [this gist][gist]. The main
 combinator library plus some example parsers is just ~230 sloc, while a
 non-staged combinator library implemented with Cats is 150 sloc.
 
-[gist]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809
+[gist]: https://gist.github.com/moleike/6fa86a3907a9d42dff349a0b53c4e809#file-staged-scala
 
 ## Parser combinators
 
@@ -494,13 +494,12 @@ This goes to show a library user does not need to worry about continuations.
 Following tradition, a natural fit for an applicative or monoidal-style
 combinator API would be to derive instances of [Cats][cats] type classes.
 However, we would get stuck. The fundamental mismatch is staging: because we
-need to manipulate ASTs, we need a quotation context  and type
-information made explicit to avoid type erasure across stages. The types simply
-do not align.
+need to manipulate ASTs, we need a quotation context and type information made
+explicit to avoid type erasure across stages. The types simply do not align.
 
 [cats]: https://typelevel.org/cats/
 
-However, the parser combinator API we provide is _almost_ standard, with
+Even so, the parser combinator API we provide is _almost_ standard, with
 mapping, sequence, choice, recursion and _iteration_ as a separate combinator
 (fold)---we'll see why later.
 
