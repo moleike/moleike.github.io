@@ -3,7 +3,6 @@ themesDir = "themes"
 theme = "hugo-bearblog"
 
 # Basic metadata configuration for your blog.
-title = "Scattered Space"
 author = "Alex Moreno"
 copyright = "Copyright © 2025, Alex Moreno."
 languageCode = "en-US"
@@ -25,7 +24,7 @@ enableGitInfo = false
   # By default, if you want to read more than one blog post you have to always go
   # back to the /blog page.
   # By enabling this feature each blog post will have at the end a navigator
-  enablePostNavigator = false
+  enablePostNavigator = true
 
   # By default, this theme displays dates with a format like "02 Jan, 2006", but
   # you can customize it by setting the `dateFormat` param in your site's config
