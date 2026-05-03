@@ -6,6 +6,10 @@ image: images/about.jpg
 
 # `$ whoami`
 
+<div style="float: right; margin: -10px 10px 0px 0px; width: 47%;">
+{{< figure src="/images/me.jpg" >}}
+</div>
+
 These pages are by me, Alex Moreno. I was born and raised in Barcelona, Spain.
 
 A formally trained electrical engineer and a functional programmer by trade, I
@@ -28,4 +32,5 @@ If you want to reach out to me with ideas, projects, or just want to say hi, I
 go by [moleike][keybase]---my anglicised Chinese name---on the usual places.
 
 [keybase]: https://keybase.io/moleike
+
 
