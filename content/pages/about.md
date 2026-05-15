@@ -6,8 +6,8 @@ image: images/about.jpg
 
 # `$ whoami`
 
-<div style="float: right; margin: -10px 10px 0px 0px; width: 47%;">
-{{< figure src="/images/me.webp" width="100%" alt="Alex Moreno" >}}
+<div style="float: right; margin: -10px 20px -30px 0px; width: 45%; aspect-ratio: 1 / 1;">
+{{< figure src="/images/me.webp" loading="eager" >}}
 </div>
 
 These pages are by me, Alex Moreno. I was born and raised in Barcelona, Spain.
