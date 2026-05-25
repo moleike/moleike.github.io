@@ -17,8 +17,9 @@ inadvertently worked my way up from hardware design to kernel and low-level
 programming of embedded systems to building streaming data pipelines and
 event-driven applications. So, in a certain way, I climbed the ladder.
 
-I've worked across varied industries, including contract manufacturing,
-aerospace, device telemetry, instant messaging, and recently, market research.
+I've worked across a variety of industries, including aerospace, contract
+manufacturing, market research, and applications like video streaming, device
+telemetry, and instant messaging.
 
 Coming from an early start in hardware, I like my software to be rigorous. I
 naturally lean toward practices grounded in mathematics—using tools that
